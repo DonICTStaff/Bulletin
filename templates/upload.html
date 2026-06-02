@@ -1,0 +1,15 @@
+<html>
+  <head>
+    <img src="{{ url_for('static', filename='donlogo.jpg') }}"><!--Source of the don college logo image.-->
+    <link rel="stylesheet" href="{{ url_for('static', filename='styleuploads.css') }}"><!--link to the stylesheet.-->
+    <title>Upload powerpoint</title>
+  </head>
+  <body>
+      <h1>Pick a powerpoint from your computer to upload!</h1><!--Text that instructs the user on how to use the page.-->
+      <h2><a href="/changelog">Changelog</a></h2><!--H2 links to the changelog page.-->
+      <form method="post" enctype="multipart/form-data"><!--Create a form element that takes in a file and sends it back to the flask app.-->
+        <input type="file" name="file" /><!--Create an input field that takes a file.-->
+        <input type="submit" value="Upload" />><!--Create a button that submits the uploaded file.-->
+      </form>
+  </body>
+</html>

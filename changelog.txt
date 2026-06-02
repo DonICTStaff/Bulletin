@@ -1,0 +1,9 @@
+v1.2: Added a changelog page.
+      General QOL changes and tweaks.
+      
+      
+v1.3: fixed bug that caused powerpoint to crash and not relaunch after a period of time.
+              Added a changelog page.
+              Added an external CSS sheet.
+              Added a sitemap.
+              Added a feature which logs any crashes to the ubuntu terminal.

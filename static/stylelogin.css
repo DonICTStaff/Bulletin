@@ -1,0 +1,28 @@
+h1 {  /*Set the colour, position and size of the h1 element.*/
+    position: absolute;
+    top: 15%;
+    left: 10%;
+    
+    width: 100%;
+}
+
+h2 {  /*Set the position of the second heading element which is used to navigate to */
+    position: absolute;
+    top: 2%;
+    left: 10%;
+}
+
+form {  /*Set the position and size of the form.*/
+    position: absolute;
+    
+    top: 30%;
+    left: 30%;
+    
+    width: 500%;
+}
+
+img {  /*Handles position of the don college logo*/
+    position: absolute;
+    top: 1%;
+    left: 1%;
+}

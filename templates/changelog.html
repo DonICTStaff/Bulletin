@@ -1,0 +1,13 @@
+<html>
+  <head>
+    <title>Changelog</title><!--title of the page internally.-->
+    <img src="{{ url_for('static', filename='donlogo.jpg') }}"><!--location of the Don College logo.-->
+    <link rel="stylesheet" href="{{ url_for('static', filename='stylechangelog.css') }}"><!--Link to the stylesheet.-->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!--Viewport that will display the changelog.txt data.-->
+  </head>
+  <body>
+     <h1>Changelog</h1><!--Header that displays the text "Changlog"-->
+     <h2><a href="/">Back to login</a></h2><!--Takes the user back to the login page-->
+     <div class="box">{{ content }}</div><!--Create a class with the name box to display the content of the changelog.txt-->
+    </body>
+</html>

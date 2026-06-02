@@ -1,0 +1,16 @@
+<html>
+  <head>
+    <img src="{{ url_for('static', filename='donlogo.jpg') }}"><!--Don College logo source.-->
+    <link rel="stylesheet" href="{{ url_for('static', filename='stylelogin.css') }}"><!--link to the stylesheet.-->
+    <title>Login</title><!--Title of the page.-->
+  </head>
+  <body>
+    <h1>Welcome to the Don College Bulletin board viewer, please login!</h1><!--H1 element displays text to instruct the user on what to do.-->
+    <h2><a href="/changelog">Changelog</a></h2><!--H2 is used to link the changelog page and the login/uploads page together. href="/changelog" refrences a function in app.py which will load the changelog page.-->
+    <form action="" method="post"><!--The form element is added with the method "post" which is used to send the data from the form to the server to be used for verification.-->
+      <input type = "text" placeholder="Username" name="username" value ="{{request.form.username}}"><!--input type is set to text to allow the input of the username.-->
+      <input type = "password" placeholder="Password" name="password" value ="{{request.form.password}}"><!--create an input field for the password.-->
+      <input class = "btn btn-default" type="submit" value="Login"><!--create a button that will submit the username and password and give it the title 'login'-->
+    </form>
+  </body>
+</html>

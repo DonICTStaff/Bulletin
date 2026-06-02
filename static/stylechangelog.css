@@ -1,0 +1,32 @@
+h1 { /*H1 handles the main header for the changelog page, here it sets the position and size.*/
+    position: absolute;
+    top: 15%;
+    left: 10%;
+    
+    width: 100%;
+}
+
+h2 { /*H2 handles the positioning of the "Back to login" link.*/
+    position: absolute;
+    top: 2%;
+    left: 10%;
+}
+
+.box{ /*The .box element handles styling the box which will contain the changelog.txt file.*/
+  
+  position: absolute;
+  top: 30%;
+  left: 10%;
+
+  border: 1px solid #000;
+  padding: 10px;
+  width: 75%;
+  height: 50%;
+
+}
+
+img { /*Positions the Don College image in the top left hand corner of the screen.*/
+    position: absolute;
+    top: 1%;
+    left: 1%;
+}
