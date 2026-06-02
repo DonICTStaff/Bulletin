@@ -39,6 +39,6 @@ The objective of this project is to develop a scalable, client-server digital si
 * [ ] **Phase 1: Environment & Auth.** Set up Ubuntu Server Flask environment, implement Admin/Operator login system.
 * [ ] **Phase 2: File Handling & UI.** Create the dashboard for uploading and managing `.pptx` files.
 * [ ] **Phase 3: Pi Client Base.** Develop the Raspberry Pi OS script to download a `.pptx` and successfully launch it in unattended kiosk mode.
-* [ ] **Phase 4: Fleet Synchronization.** Implement WebSockets to instantly trigger `.pptx` updates across all 4+ clients simultaneously.
+* [ ] **Phase 4: Fleet Synchronization.** Implement WebSockets to instantly trigger `.pptx` updates across all 4+ clients either simultaneously or individually.
 * [ ] **Phase 5: Remote Administration & Telemetry.** Implement device health reporting (network info, uptime) and remote command execution (reboot, reload) from the Admin dashboard over WebSockets.
 * [ ] **Phase 6: Deployment & Hardening.** Auto-start on boot for the Pi clients, error handling for network drops, sudoer configuration for Pi reboots without password prompts, and final security checks on the server.
