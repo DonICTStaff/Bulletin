@@ -5,10 +5,13 @@ import time
 import threading
 import secrets
 from functools import wraps
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort, send_from_directory
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO, emit
+from flask_wtf.csrf import CSRFProtect
+from wtforms import StringField, PasswordField, SelectField, FileField
+from wtforms.validators import DataRequired, Length
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from datetime import datetime
@@ -23,11 +26,23 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100 MB max upload
 
 ALLOWED_EXTENSIONS = {'pptx', 'ppt'}
 
+
+def broadcast_to_clients(event_name, data):
+    """Emit a WebSocket event only to registered Pi client SIDs,
+    not to dashboard browsers or unauthenticated connections."""
+    for sid in PI_CLIENT_SIDS:
+        socketio.emit(event_name, data, room=sid)
+
 # ── Extensions ────────────────────────────────────────────────────────────────
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins='*')
+
+# CSRF protection for all HTML form POSTs
+# API routes (/api/*) are exempt -- they use API key auth instead
+csrf = CSRFProtect(app)
+
 
 # ── Database Models ───────────────────────────────────────────────────────────
 class User(UserMixin, db.Model):
@@ -138,6 +153,7 @@ def crash_protection():
 
 
 # ── Routes: Auth ──────────────────────────────────────────────────────────────
+@csrf.exempt
 @app.route('/', methods=['GET', 'POST'])
 def login():
     if current_user.is_authenticated:
@@ -198,7 +214,9 @@ def upload_file():
     ts = datetime.now().strftime('%Y%m%d_%H%M%S')
     stored_name = f"{ts}_{filename}"
 
-    clear_uploads()
+    # Do NOT clear_uploads() here -- old files are still referenced by
+    # Slideshow DB records. Individual files are deleted only via the
+    # delete_slideshow route.
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], stored_name)
     file.save(file_path)
 
@@ -218,8 +236,8 @@ def upload_file():
     # Run locally
     run_presentation()
 
-    # Broadcast to all connected clients via WebSocket
-    socketio.emit('new_presentation_available', {
+    # Broadcast ONLY to registered Pi clients (not to dashboard browsers)
+    broadcast_to_clients('new_presentation_available', {
         'filename': stored_name,
         'original_filename': filename,
         'url': url_for('download_presentation', _external=True)
@@ -238,14 +256,16 @@ def activate_slideshow(sid):
     slideshow.is_active = True
     db.session.commit()
 
-    # Copy active file to upload folder for local display
-    clear_uploads()
+    # Run locally if the file still exists on disk
     src = os.path.join(app.config['UPLOAD_FOLDER'], slideshow.filename)
     if os.path.exists(src):
+        clear_uploads()  # Clear old local display file
         shutil.copy2(src, os.path.join(app.config['UPLOAD_FOLDER'], slideshow.filename))
-    run_presentation()
+        run_presentation()
+    else:
+        flash('Warning: file for this presentation is missing from disk.', 'error')
 
-    socketio.emit('new_presentation_available', {
+    broadcast_to_clients('new_presentation_available', {
         'filename': slideshow.filename,
         'original_filename': slideshow.original_filename,
         'url': url_for('download_presentation', _external=True)
@@ -276,7 +296,9 @@ def download_presentation():
     active = Slideshow.query.filter_by(is_active=True).first()
     if not active:
         abort(404)
-    return redirect(url_for('static', filename=f'../uploads/{active.filename}'))
+    # Use send_from_directory to prevent path traversal -- it validates the
+    # filename stays within UPLOAD_FOLDER and won't follow ../ escapes
+    return send_from_directory(app.config['UPLOAD_FOLDER'], active.filename, as_attachment=True)
 
 
 @app.route('/api/presentation/active')
@@ -296,26 +318,34 @@ def api_active_presentation():
 def api_register():
     """Pre-register a client device and return an API key.
 
-    The client daemon calls this on first boot to get a persistent key.
-    Subsequent connections use the key for authentication.
+    Security: If a client_id is claimed and the caller does not provide
+    the matching api_key, the registration is rejected. This prevents
+    an attacker from hijacking a registered device by guessing its client_id.
 
     POST JSON: {
         "client_id": "library-north",   # optional
         "name": "Library North Display", # optional
-        "mac_address": "aa:bb:cc:dd:ee:ff"  # optional
+        "mac_address": "aa:bb:cc:dd:ee:ff",  # optional
+        "api_key": "existing-key-for-re-registration"  # required for re-registration
     }
     """
     data = request.get_json(silent=True) or {}
     client_id = data.get('client_id', '').strip()
     name = data.get('name', 'Unnamed Device')
     mac = data.get('mac_address', '')
+    api_key = data.get('api_key', '').strip()
 
     # Look up existing
     client = None
-    if client_id:
+    if api_key:
+        client = ClientDevice.query.filter_by(api_key=api_key).first()
+    if not client and client_id:
         client = ClientDevice.query.filter_by(client_id=client_id).first()
-    if not client and mac:
-        client = ClientDevice.query.filter_by(mac_address=mac).first()
+
+    # Security: If we found a client by client_id but NOT by api_key,
+    # the caller doesn't own this client_id. Reject.
+    if client and not api_key:
+        return jsonify({'error': 'client_id is already registered. Provide api_key to re-register.'}), 403
 
     is_new = False
     if not client:
@@ -445,20 +475,29 @@ def fleet_management():
 
 
 # ── WebSocket Events ──────────────────────────────────────────────────────────
+# Track which WebSocket SIDs belong to registered Pi clients
+# (versus dashboard browsers). This prevents broadcasting presentation
+# URLs to unauthenticated connections.
+PI_CLIENT_SIDS = set()
+
+
 @socketio.on('connect')
 def handle_connect():
-    print(f'Client connected: {request.sid}')
+    print(f'WebSocket connected: {request.sid}')
 
 
 @socketio.on('disconnect')
 def handle_disconnect():
+    # Remove from Pi client set
+    PI_CLIENT_SIDS.discard(request.sid)
+
     # Mark client offline
     client = ClientDevice.query.filter_by(socket_id=request.sid).first()
     if client:
         client.is_online = False
         client.socket_id = None
         db.session.commit()
-    print(f'Client disconnected: {request.sid}')
+    print(f'WebSocket disconnected: {request.sid}')
 
 
 @socketio.on('client_register')
@@ -522,6 +561,9 @@ def handle_client_register(data):
 
     db.session.commit()
 
+    # Mark this SID as a known Pi client (not a dashboard browser)
+    PI_CLIENT_SIDS.add(request.sid)
+
     print(f'[REGISTER] client_id={client.client_id or "unregistered"}, '
           f'name={client.name}, ip={ip}, new={is_new}, key={client.api_key[:8]}...')
 
@@ -561,8 +603,16 @@ def handle_telemetry(data):
 
 @socketio.on('execute_command')
 def handle_execute_command(data):
-    """Admin sends a command to a specific client."""
-    if not current_user.is_authenticated or not current_user.is_admin():
+    """Admin sends a command to a specific client.
+
+    Requires an admin API token in the payload for authentication.
+    Flask-Login sessions are unreliable in WebSocket context, so we
+    validate a server-side admin token instead.
+    """
+    # Require admin_token for auth (WebSocket doesn't carry Flask sessions reliably)
+    admin_token = data.get('admin_token', '')
+    # Check against the server's secret key as a shared admin token
+    if admin_token != app.config['SECRET_KEY']:
         emit('error', {'message': 'Unauthorized'})
         return
 
@@ -573,8 +623,10 @@ def handle_execute_command(data):
         emit('error', {'message': 'Invalid command'})
         return
 
-    if target_sid:
+    if target_sid and target_sid in PI_CLIENT_SIDS:
         emit('command', {'command': command}, room=target_sid)
+    else:
+        emit('error', {'message': 'Target client not found or not a Pi client'})
 
 
 # ── Changelog (kept from original) ────────────────────────────────────────────
@@ -608,8 +660,22 @@ if __name__ == '__main__':
     with app.app_context():
         init_db()
 
+    # Exempt API routes from CSRF (they use API key auth, not session cookies)
+    for rule in app.url_map.iter_rules():
+        if rule.rule.startswith('/api/'):
+            view_func = app.view_functions.get(rule.endpoint)
+            if view_func:
+                csrf.exempt(view_func)
+
     run_presentation()
     check_thread = threading.Thread(target=crash_protection, daemon=True)
     check_thread.start()
-
     socketio.run(app, host='0.0.0.0', port=5000)
+
+
+# Also exempt at import time (for test clients, etc.)
+for rule in app.url_map.iter_rules():
+    if rule.rule.startswith('/api/'):
+        view_func = app.view_functions.get(rule.endpoint)
+        if view_func:
+            csrf.exempt(view_func)

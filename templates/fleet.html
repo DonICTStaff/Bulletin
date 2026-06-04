@@ -50,7 +50,7 @@
             const d = Math.floor(seconds / 86400);
             const h = Math.floor((seconds % 86400) / 3600);
             const m = Math.floor((seconds % 3600) / 60);
-            if (d > 0) return d + 'd ' + h + 'h';
+            if (d > 0) return d + 'd ' + h + 'h ' + m + 'm';
             return h + 'h ' + m + 'm';
         }
 
@@ -60,7 +60,7 @@
                 const resp = await fetch('/api/clients/' + dbId + '/command', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ command: command })
+                    body: JSON.stringify({ command: command, admin_token: window.ADMIN_TOKEN })
                 });
                 const data = await resp.json();
                 if (resp.ok) {
@@ -75,9 +75,8 @@
     </script>
 </head>
 <body>
+    <script>window.ADMIN_TOKEN=*** config['SECRET_KEY'] }}";</script>
     <div class="shell">
-        <!-- Sidebar -->
-        <nav class="sidebar">
             <div class="sidebar__brand">
                 <img src="{{ url_for('static', filename='donlogo.jpg') }}" alt="Don College">
                 <div>

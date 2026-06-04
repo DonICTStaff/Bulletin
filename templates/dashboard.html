@@ -104,6 +104,7 @@
                         </div>
                         <div class="card__body">
                             <form method="post" action="/upload" enctype="multipart/form-data">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <div class="upload-zone" onclick="document.getElementById('file-input').click()"
                                      ondragover="event.preventDefault(); this.style.borderColor='var(--primary)'"
                                      ondragleave="this.style.borderColor=''">
@@ -154,11 +155,13 @@
                                     </td>
                                     <td style="text-align:right; white-space:nowrap;">
                                         <form method="post" action="/slideshow/{{ s.id }}/activate" style="display:inline;">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                             <button class="btn btn--sm btn--ghost" type="submit" {% if s.is_active %}disabled{% endif %}>Set Active</button>
                                         </form>
                                         {% if current_user.is_admin() %}
                                         <form method="post" action="/slideshow/{{ s.id }}/delete" style="display:inline;"
                                               onsubmit="return confirm('Delete this presentation?');">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                             <button class="btn btn--sm btn--danger" type="submit">Delete</button>
                                         </form>
                                         {% endif %}

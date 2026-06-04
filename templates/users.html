@@ -72,6 +72,7 @@
                         </div>
                         <div class="card__body">
                             <form method="post" action="/users/create">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <div class="form-group">
                                     <label class="form-label" for="username">Username</label>
                                     <input class="form-input" type="text" id="username" name="username"
@@ -137,6 +138,7 @@
                                             {% if u.id != current_user.id %}
                                             <form method="post" action="/users/{{ u.id }}/delete" style="display:inline;"
                                                   onsubmit="return confirm('Delete user &quot;{{ u.username }}&quot;?');">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                 <button class="btn btn--sm btn--danger" type="submit">Delete</button>
                                             </form>
                                             {% endif %}
