@@ -1,0 +1,6 @@
+# /etc/sudoers.d/bulletin-kiosk
+# Allow the 'pi' user to reboot without a password prompt
+# Required for remote reboot via the Bulletin Board admin dashboard
+
+pi ALL=(ALL) NOPASSWD: /sbin/reboot
+pi ALL=(ALL) NOPASSWD: /usr/sbin/reboot

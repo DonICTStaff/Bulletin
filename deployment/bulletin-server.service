@@ -1,0 +1,18 @@
+[Unit]
+Description=Bulletin Board Flask Server
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=bulletin
+Group=bulletin
+WorkingDirectory=/opt/bulletin
+ExecStart=/opt/bulletin/venv/bin/python -m flask run --host=127.0.0.1 --port=5000
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

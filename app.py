@@ -1,111 +1,464 @@
-import os #Import the OS module, nececary for python interaction with the operating system.
-import subprocess #Import the subproccess module which allows for python to run other programs or commands.
+import os
+import subprocess
 import shutil
-import time # Import the time functionality which is used to print crashlogs. 
-import threading # Threading is used later in the program to check if libreoffice is running or not.
-from flask import Flask, render_template, request, redirect, url_for # Import some extra Flask tools for displaying the pages. 
-from flask_login import LoginManager, UserMixin, login_user, login_required #Import the flask login tools. The login manager handles the logging in and logging out of users. It also handles managing user sessions and the ability to lock certain pages unless logged in.
-from datetime import datetime # Import datetime functionality which is used to log crashes.
+import time
+import threading
+import secrets
+from functools import wraps
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, abort
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_sqlalchemy import SQLAlchemy
+from flask_socketio import SocketIO, emit
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+from datetime import datetime
 
+# ── App Configuration ────────────────────────────────────────────────────────
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'eyfbdh!3dh#@hHbVVy1' # Sets a secret key which is used by flask to sign cookies.
-app.config['UPLOAD_FOLDER'] = 'uploads/' # Define the location of the uploads folder.
-login_manager = LoginManager(app) # Create an instance of login manager and set it to the variable login_manager. 
-login_manager.login_view = 'login' # Stops the user from getting a 404 error when navigating to the uploads page without being logged in.
+app.config['SECRET_KEY'] = secrets.token_hex(32)
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///bulletin.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100 MB max upload
 
-class User(UserMixin): # This class handles the storage of user ID as well as providing a way of retrieving that data when nececeary.
-    def __init__(self, id):
-        self.id = id
-    def get_id(self): 
-        return str(self.id) 
+ALLOWED_EXTENSIONS = {'pptx', 'ppt'}
 
-@login_manager.user_loader # If the user is logged in then allow them to access the website.
-def load_user(user_id):  
-    if user_id == '1': 
-        return User(1) 
-    return None
+# ── Extensions ────────────────────────────────────────────────────────────────
+db = SQLAlchemy(app)
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins='*')
 
-if not os.path.exists(app.config['UPLOAD_FOLDER']): # Checks to see if the upload folder exists and if it does not create one.
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+# ── Database Models ───────────────────────────────────────────────────────────
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    role = db.Column(db.String(20), nullable=False, default='operator')  # 'admin' or 'operator'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-def clear_uploads():# Handles deletion of old files in the uploads folder. 
-    upload_folder = app.config['UPLOAD_FOLDER']# Sets the location of the upload folder directory to the flask UPLOAD_FOLDER location.
-    for filename in os.listdir(upload_folder): # Goes through all the files in the uploads folder.
-        file_path = os.path.join(upload_folder, filename) # Creates the path for each of the files in the uploads folder.
-        try: 
-            if os.path.isfile(file_path) or os.path.islink(file_path): # Check if the file is actually a file and not a link to another file.
-                os.unlink(file_path) # Unlinks the file, thus deleting it.
-            elif os.path.isdir(file_path):# If the item is a directory rather than a file it deletes the entire directory and it's contents.
-                shutil.rmtree(file_path) 
-        except Exception as e:# If there is an error print a message to the terminal with the specific file and error.
-            print('Unable to remove %s. Because: %s' % (file_path, e)) 
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
 
-def run_presentation():# Function handles running the presentation and will be called whenever the powerpoint crashes or a new one is uploaded.
-    upload_folder = app.config['UPLOAD_FOLDER']# Get the location of the uploads folder from the flask configuration.
-    for filename in os.listdir(upload_folder): # For loop to check the names of the files in the uploads folder.
-        if filename.lower().endswith(('.ppt', '.pptx')):#Checks to make sure that the file is a pptx or ppt file.
+    def is_admin(self):
+        return self.role == 'admin'
+
+
+class Slideshow(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    filename = db.Column(db.String(256), nullable=False)
+    original_filename = db.Column(db.String(256), nullable=False)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+    is_active = db.Column(db.Boolean, default=False)
+
+    uploader = db.relationship('User', backref='slideshows')
+
+
+class ClientDevice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(128), nullable=False, default='Unnamed Device')
+    ip_address = db.Column(db.String(45))
+    mac_address = db.Column(db.String(17))
+    last_seen = db.Column(db.DateTime)
+    is_online = db.Column(db.Boolean, default=False)
+    cpu_temp = db.Column(db.Float)
+    uptime_seconds = db.Column(db.Integer)
+    active_presentation = db.Column(db.String(256))
+    socket_id = db.Column(db.String(128))  # WebSocket SID for targeted commands
+
+
+# ── RBAC Decorator ────────────────────────────────────────────────────────────
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not current_user.is_authenticated or not current_user.is_admin():
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+# ── User Loader ───────────────────────────────────────────────────────────────
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def clear_uploads():
+    upload_folder = app.config['UPLOAD_FOLDER']
+    for filename in os.listdir(upload_folder):
+        file_path = os.path.join(upload_folder, filename)
+        try:
+            if os.path.isfile(file_path) or os.path.islink(file_path):
+                os.unlink(file_path)
+            elif os.path.isdir(file_path):
+                shutil.rmtree(file_path)
+        except Exception as e:
+            print(f'Unable to remove {file_path}: {e}')
+
+
+def run_presentation():
+    upload_folder = app.config['UPLOAD_FOLDER']
+    for filename in os.listdir(upload_folder):
+        if filename.lower().endswith(('.ppt', '.pptx')):
             file_path = os.path.join(upload_folder, filename)
-            subprocess.call(['pkill', '-f', 'libreoffice'])# Kills the current libreoffice instance.
-            subprocess.Popen(['libreoffice', '--show', file_path]) # opens libreoffice and the powerpoint in show mode.
+            subprocess.call(['pkill', '-f', 'libreoffice'])
+            subprocess.Popen(['libreoffice', '--show', file_path])
             break
 
-def is_libreoffice_running():# Function to check if libreoffice is running.
+
+def is_libreoffice_running():
     try:
-        subprocess.check_output(['pgrep', '-f', 'libreoffice'])# Run a command to check if libreoffice is running.
-        return True # Return true if libreoffice is running.
-    except subprocess.CalledProcessError: # If the libreoffice is not running then return false.
+        subprocess.check_output(['pgrep', '-f', 'libreoffice'])
+        return True
+    except subprocess.CalledProcessError:
         return False
-    
-def log_crash(): # Tells the program what to print when an error occurs.
-    now = datetime.now()# Sets the now variable to contain the current hour miniute and second.
-    current_time = now.strftime("%H :%M :%S")# Sets the the current_time variable to the contents of now and tells it how it should display the hour, minute and second.
-    print("Presentation crashed or was closed at: " + current_time + " Relaunching...")# Prints to the terminal that libreoffice closed, and been relaunched.
 
-def crash_protection(): # Function used to check if the power point has crashed. If it has it is relaunched.
-    while True: # While LibreOffice is not running then do the following.
-        if not is_libreoffice_running():# If the "is_libreoffice_running" function returns false then execute this function.
-            log_crash() # Run the log_crash function.
-            run_presentation() # Run the run_presentation function.
-        time.sleep(5)  # Rerun the function every 5 seconds to minimise downtime.
 
-@app.route('/', methods=['GET', 'POST']) # Specifies the http methods that are avalible and when this function should trigger.
-def login():# Function to handle logins.
-    error = None 
-    if request.method == 'POST': # If the flask app recives data from the form in the login page.
-        if request.form['username'] == 'admin' and request.form['password'] == 'Library24!': # Compares what was submitted in the form to what the password should be. This is also where the password is set.
-            user = User(1) # The user is set to 1 which will allow the login_user function to log the user in.
-            login_user(user) # The login_user function is then used and given user as a variable.
-            return redirect(url_for('upload_file')) # Redirects the user to the uploads page.
-        else: # If the password and username don't match then report an error and render it in the login html page.
-            error = 'Invalid credentials' 
+def log_crash():
+    now = datetime.now()
+    current_time = now.strftime("%H:%M:%S")
+    print(f"Presentation crashed or was closed at: {current_time} Relaunching...")
+
+
+def crash_protection():
+    while True:
+        if not is_libreoffice_running():
+            log_crash()
+            run_presentation()
+        time.sleep(5)
+
+
+# ── Routes: Auth ──────────────────────────────────────────────────────────────
+@app.route('/', methods=['GET', 'POST'])
+def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+
+    error = None
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        user = User.query.filter_by(username=username).first()
+        if user and user.check_password(password):
+            login_user(user)
+            return redirect(url_for('dashboard'))
+        error = 'Invalid credentials'
     return render_template('login.html', error=error)
 
-@app.route('/uploads', methods=['GET','POST'])# Routes the user to the uploads page.
-@login_required # Ensures that the user must be logged in before navigating to this page. Were this not implemented someone would simply be able to add /uploads to the end of the URL and bypass the security.
-def upload_file():# Handles uploading a file.
-    if request.method == 'POST': # If the user uploads a file then do the following.
-        clear_uploads() # Delete all previous files in the uploads folder.
-        file = request.files['file'] # Retrieve the file that was submitted.
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], file.filename) # Get the file path to the uploads folder. 
-        file.save(file_path) # Save the file to the uploads folder.
-        
-        run_presentation() # Immediatly run the presentation.
-        
-        return 'File uploaded and displayed successfully! You may now close this page.' # Display that the file was uploaded successfully on the website.
-    return render_template('upload.html')
-    
-@app.route("/changelog") # Locks this code behind the /changelog url.
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+
+# ── Routes: Dashboard ─────────────────────────────────────────────────────────
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    slideshows = Slideshow.query.order_by(Slideshow.uploaded_at.desc()).all()
+    active = Slideshow.query.filter_by(is_active=True).first()
+    clients = ClientDevice.query.all()
+    return render_template('dashboard.html',
+                           slideshows=slideshows,
+                           active_slideshow=active,
+                           clients=clients,
+                           User=User)
+
+
+# ── Routes: File Upload ───────────────────────────────────────────────────────
+@app.route('/upload', methods=['POST'])
+@login_required
+def upload_file():
+    if 'file' not in request.files:
+        flash('No file selected', 'error')
+        return redirect(url_for('dashboard'))
+
+    file = request.files['file']
+    if file.filename == '':
+        flash('No file selected', 'error')
+        return redirect(url_for('dashboard'))
+
+    if not allowed_file(file.filename):
+        flash('Only .ppt and .pptx files are allowed', 'error')
+        return redirect(url_for('dashboard'))
+
+    filename = secure_filename(file.filename)
+    # Add timestamp to avoid collisions
+    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    stored_name = f"{ts}_{filename}"
+
+    clear_uploads()
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], stored_name)
+    file.save(file_path)
+
+    # Deactivate all previous slideshows
+    Slideshow.query.update({Slideshow.is_active: False})
+
+    # Create DB record
+    slideshow = Slideshow(
+        filename=stored_name,
+        original_filename=filename,
+        uploaded_by=current_user.id,
+        is_active=True
+    )
+    db.session.add(slideshow)
+    db.session.commit()
+
+    # Run locally
+    run_presentation()
+
+    # Broadcast to all connected clients via WebSocket
+    socketio.emit('new_presentation_available', {
+        'filename': stored_name,
+        'original_filename': filename,
+        'url': url_for('download_presentation', _external=True)
+    })
+
+    flash(f'Presentation "{filename}" uploaded and activated!', 'success')
+    return redirect(url_for('dashboard'))
+
+
+# ── Routes: Set Active Presentation ───────────────────────────────────────────
+@app.route('/slideshow/<int:sid>/activate', methods=['POST'])
+@login_required
+def activate_slideshow(sid):
+    slideshow = Slideshow.query.get_or_404(sid)
+    Slideshow.query.update({Slideshow.is_active: False})
+    slideshow.is_active = True
+    db.session.commit()
+
+    # Copy active file to upload folder for local display
+    clear_uploads()
+    src = os.path.join(app.config['UPLOAD_FOLDER'], slideshow.filename)
+    if os.path.exists(src):
+        shutil.copy2(src, os.path.join(app.config['UPLOAD_FOLDER'], slideshow.filename))
+    run_presentation()
+
+    socketio.emit('new_presentation_available', {
+        'filename': slideshow.filename,
+        'original_filename': slideshow.original_filename,
+        'url': url_for('download_presentation', _external=True)
+    })
+
+    flash(f'Presentation "{slideshow.original_filename}" is now active.', 'success')
+    return redirect(url_for('dashboard'))
+
+
+# ── Routes: Delete Slideshow ──────────────────────────────────────────────────
+@app.route('/slideshow/<int:sid>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_slideshow(sid):
+    slideshow = Slideshow.query.get_or_404(sid)
+    file_path = os.path.join(app.config['UPLOAD_FOLDER'], slideshow.filename)
+    if os.path.exists(file_path):
+        os.unlink(file_path)
+    db.session.delete(slideshow)
+    db.session.commit()
+    flash(f'Presentation "{slideshow.original_filename}" deleted.', 'success')
+    return redirect(url_for('dashboard'))
+
+
+# ── Routes: Download (for Pi clients) ─────────────────────────────────────────
+@app.route('/api/download/presentation')
+def download_presentation():
+    active = Slideshow.query.filter_by(is_active=True).first()
+    if not active:
+        abort(404)
+    return redirect(url_for('static', filename=f'../uploads/{active.filename}'))
+
+
+@app.route('/api/presentation/active')
+def api_active_presentation():
+    active = Slideshow.query.filter_by(is_active=True).first()
+    if not active:
+        return jsonify({'error': 'No active presentation'}), 404
+    return jsonify({
+        'filename': active.filename,
+        'original_filename': active.original_filename,
+        'url': url_for('download_presentation', _external=True),
+        'uploaded_at': active.uploaded_at.isoformat()
+    })
+
+
+# ── Routes: User Management (Admin only) ──────────────────────────────────────
+@app.route('/users')
+@login_required
+@admin_required
+def manage_users():
+    users = User.query.all()
+    return render_template('users.html', users=users)
+
+
+@app.route('/users/create', methods=['POST'])
+@login_required
+@admin_required
+def create_user():
+    username = request.form.get('username', '').strip()
+    password = request.form.get('password', '')
+    role = request.form.get('role', 'operator')
+
+    if not username or not password:
+        flash('Username and password are required', 'error')
+        return redirect(url_for('manage_users'))
+
+    if role not in ('admin', 'operator'):
+        role = 'operator'
+
+    if User.query.filter_by(username=username).first():
+        flash(f'User "{username}" already exists', 'error')
+        return redirect(url_for('manage_users'))
+
+    user = User(username=username, password_hash=generate_password_hash(password), role=role)
+    db.session.add(user)
+    db.session.commit()
+    flash(f'User "{username}" created with role "{role}".', 'success')
+    return redirect(url_for('manage_users'))
+
+
+@app.route('/users/<int:uid>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_user(uid):
+    if uid == current_user.id:
+        flash('You cannot delete your own account', 'error')
+        return redirect(url_for('manage_users'))
+    user = User.query.get_or_404(uid)
+    db.session.delete(user)
+    db.session.commit()
+    flash(f'User "{user.username}" deleted.', 'success')
+    return redirect(url_for('manage_users'))
+
+
+# ── Routes: Fleet Management (Admin only) ─────────────────────────────────────
+@app.route('/fleet')
+@login_required
+@admin_required
+def fleet_management():
+    clients = ClientDevice.query.all()
+    return render_template('fleet.html', clients=clients)
+
+
+# ── WebSocket Events ──────────────────────────────────────────────────────────
+@socketio.on('connect')
+def handle_connect():
+    print(f'Client connected: {request.sid}')
+
+
+@socketio.on('disconnect')
+def handle_disconnect():
+    # Mark client offline
+    client = ClientDevice.query.filter_by(socket_id=request.sid).first()
+    if client:
+        client.is_online = False
+        client.socket_id = None
+        db.session.commit()
+    print(f'Client disconnected: {request.sid}')
+
+
+@socketio.on('client_register')
+def handle_client_register(data):
+    """Pi client registers itself on connection."""
+    name = data.get('name', 'Unnamed Device')
+    ip = request.remote_addr
+    mac = data.get('mac_address', '')
+
+    client = ClientDevice.query.filter_by(mac_address=mac).first()
+    if not client:
+        client = ClientDevice(name=name, mac_address=mac)
+        db.session.add(client)
+
+    client.name = name
+    client.ip_address = ip
+    client.socket_id = request.sid
+    client.is_online = True
+    client.last_seen = datetime.utcnow()
+    db.session.commit()
+
+    emit('registration_ack', {'status': 'ok', 'client_id': client.id})
+
+
+@socketio.on('telemetry_update')
+def handle_telemetry(data):
+    """Receive telemetry from Pi clients."""
+    client = ClientDevice.query.filter_by(socket_id=request.sid).first()
+    if client:
+        client.cpu_temp = data.get('cpu_temp')
+        client.uptime_seconds = data.get('uptime')
+        client.active_presentation = data.get('active_presentation')
+        client.ip_address = data.get('ip_address', client.ip_address)
+        client.last_seen = datetime.utcnow()
+        client.is_online = True
+        db.session.commit()
+
+    # Broadcast to all admin dashboards
+    emit('fleet_update', {
+        'client_id': client.id if client else None,
+        'name': client.name if client else 'Unknown',
+        'ip_address': client.ip_address if client else '',
+        'is_online': True,
+        'cpu_temp': data.get('cpu_temp'),
+        'uptime': data.get('uptime'),
+        'active_presentation': data.get('active_presentation'),
+        'last_seen': datetime.utcnow().isoformat()
+    }, broadcast=True)
+
+
+@socketio.on('execute_command')
+def handle_execute_command(data):
+    """Admin sends a command to a specific client."""
+    if not current_user.is_authenticated or not current_user.is_admin():
+        emit('error', {'message': 'Unauthorized'})
+        return
+
+    target_sid = data.get('socket_id')
+    command = data.get('command')  # 'reboot' or 'reload'
+
+    if command not in ('reboot', 'reload'):
+        emit('error', {'message': 'Invalid command'})
+        return
+
+    emit('command', {'command': command}, room=target_sid)
+
+
+# ── Changelog (kept from original) ────────────────────────────────────────────
+@app.route('/changelog')
 def changelog():
-    with open('changelog.txt', 'r') as file: # Opens the changelog.txt file in the root app folder in read mode under the name 'file'
-        content = file.read() # Sets the content variable to be the content of the changelog.txt
-    return render_template('changelog.html', content=content) # Render the html template and the content of the changelog.txt file.
+    with open(os.path.join(os.path.dirname(__file__), 'changelog.txt'), 'r') as f:
+        content = f.read()
+    return render_template('changelog.html', content=content)
+
+
+# ── App Init ──────────────────────────────────────────────────────────────────
+def init_db():
+    """Create tables and seed default admin user if none exist."""
+    db.create_all()
+    if not User.query.filter_by(username='admin').first():
+        admin = User(
+            username='admin',
+            password_hash=generate_password_hash('Library24!'),
+            role='admin'
+        )
+        db.session.add(admin)
+        db.session.commit()
+        print('Default admin user created (admin / Library24!)')
+
 
 if __name__ == '__main__':
-    run_presentation()  # Run the presentation when the app starts
-    
-    # Start the background thread to check and relaunch the presentation
-    check_thread = threading.Thread(target=crash_protection)
-    check_thread.daemon = True
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+    with app.app_context():
+        init_db()
+
+    run_presentation()
+    check_thread = threading.Thread(target=crash_protection, daemon=True)
     check_thread.start()
-    
-    app.run(host='0.0.0.0')#Runs the app on the avalible host address.
+
+    socketio.run(app, host='0.0.0.0', port=5000)

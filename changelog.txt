@@ -7,3 +7,19 @@ v1.3: fixed bug that caused powerpoint to crash and not relaunch after a period 
               Added an external CSS sheet.
               Added a sitemap.
               Added a feature which logs any crashes to the ubuntu terminal.
+
+v2.0: Complete rewrite for client-server digital signage architecture.
+      Phase 1: Added SQLAlchemy database, Flask-Login with Werkzeug password hashing,
+               RBAC with Admin/Operator roles, admin_required decorator.
+      Phase 2: Added .pptx file validation, Slideshow DB model, active presentation tracking,
+               role-aware dashboard UI, user management (admin only), flash messaging.
+      Phase 3: Created client_daemon.py for Raspberry Pi -- HTTP download, LibreOffice kiosk
+               mode, process management (kill/relaunch), crash protection.
+      Phase 4: Integrated Flask-SocketIO for real-time push notifications,
+               python-socketio client on Pi, new_presentation_available broadcast.
+      Phase 5: Added telemetry reporting (CPU temp, uptime, IP, MAC via psutil),
+               fleet management dashboard with live WebSocket updates,
+               remote reboot/reload commands via targeted WebSocket messages.
+      Phase 6: Added systemd service files (kiosk-daemon.service, bulletin-server.service),
+               sudoers config for passwordless reboot, Nginx reverse proxy config,
+               exponential backoff reconnection logic, deployment documentation.

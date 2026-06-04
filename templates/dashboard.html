@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styleuploads.css') }}">
+    <title>Dashboard</title>
+</head>
+<body>
+    <img src="{{ url_for('static', filename='donlogo.jpg') }}">
+
+    <div style="position: absolute; top: 2%; right: 2%;">
+        Logged in as <strong>{{ current_user.username }}</strong> ({{ current_user.role }})
+        | <a href="/logout">Logout</a>
+        | <a href="/changelog">Changelog</a>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <div style="position: absolute; top: 8%; left: 10%; width: 80%;">
+        {% for category, message in messages %}
+        <div style="padding: 10px; margin: 5px 0; border-radius: 4px;
+                    {% if category == 'error' %}background: #f8d7da; color: #721c24;
+                    {% else %}background: #d4edda; color: #155724;{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <!-- Active Presentation -->
+    <h1>Bulletin Board Dashboard</h1>
+
+    <div style="position: absolute; top: 15%; left: 10%; width: 55%;">
+        <h2>Active Presentation</h2>
+        {% if active_slideshow %}
+        <div style="padding: 15px; border: 2px solid #155724; border-radius: 8px; background: #d4edda;">
+            <strong>{{ active_slideshow.original_filename }}</strong><br>
+            Uploaded: {{ active_slideshow.uploaded_at.strftime('%Y-%m-%d %H:%M') }}<br>
+            By: {{ active_slideshow.uploader.username }}
+        </div>
+        {% else %}
+        <p>No active presentation. Upload one below!</p>
+        {% endif %}
+
+        <h2>Upload New Presentation</h2>
+        <form method="post" action="/upload" enctype="multipart/form-data">
+            <input type="file" name="file" accept=".ppt,.pptx">
+            <input type="submit" value="Upload &amp; Activate">
+        </form>
+    </div>
+
+    <!-- Slideshow History -->
+    <div style="position: absolute; top: 15%; right: 5%; width: 25%;">
+        <h2>Presentation History</h2>
+        {% if slideshows %}
+        <ul style="list-style: none; padding: 0; max-height: 400px; overflow-y: auto;">
+            {% for s in slideshows %}
+            <li style="padding: 8px; margin: 4px 0; border: 1px solid #ccc; border-radius: 4px;
+                        {% if s.is_active %}background: #d4edda;{% endif %}">
+                <strong>{{ s.original_filename }}</strong><br>
+                <small>{{ s.uploaded_at.strftime('%Y-%m-%d %H:%M') }} by {{ s.uploader.username }}</small>
+                {% if s.is_active %}<br><small><em>ACTIVE</em></small>{% endif %}
+                <form method="post" action="/slideshow/{{ s.id }}/activate" style="display:inline;">
+                    <button type="submit" {% if s.is_active %}disabled{% endif %}>Set Active</button>
+                </form>
+                {% if current_user.is_admin() %}
+                <form method="post" action="/slideshow/{{ s.id }}/delete" style="display:inline;"
+                      onsubmit="return confirm('Delete this presentation?');">
+                    <button type="submit" style="background:#dc3545;color:#fff;">Delete</button>
+                </form>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p>No presentations uploaded yet.</p>
+        {% endif %}
+    </div>
+
+    <!-- Admin-only links -->
+    {% if current_user.is_admin() %}
+    <div style="position: absolute; bottom: 5%; left: 10%;">
+        <a href="/users"><button>Manage Users</button></a>
+        <a href="/fleet"><button>Fleet Management</button></a>
+    </div>
+    {% endif %}
+</body>
+</html>

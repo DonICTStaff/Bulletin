@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styleuploads.css') }}">
+    <title>Fleet Management</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+
+        socket.on('connect', function() {
+            console.log('WebSocket connected for fleet updates');
+        });
+
+        socket.on('fleet_update', function(data) {
+            updateClientRow(data);
+        });
+
+        function updateClientRow(data) {
+            const row = document.getElementById('client-' + data.client_id);
+            if (row) {
+                row.querySelector('.status').textContent = data.is_online ? 'Online' : 'Offline';
+                row.querySelector('.status').style.color = data.is_online ? 'green' : 'red';
+                row.querySelector('.cpu-temp').textContent = data.cpu_temp ? data.cpu_temp.toFixed(1) + '°C' : 'N/A';
+                row.querySelector('.uptime').textContent = data.uptime ? formatUptime(data.uptime) : 'N/A';
+                row.querySelector('.active-presentation').textContent = data.active_presentation || 'None';
+                row.querySelector('.last-seen').textContent = data.last_seen || 'N/A';
+            }
+        }
+
+        function formatUptime(seconds) {
+            const h = Math.floor(seconds / 3600);
+            const m = Math.floor((seconds % 3600) / 60);
+            return h + 'h ' + m + 'm';
+        }
+
+        function sendCommand(socketId, command) {
+            if (confirm('Send "' + command + '" command to this device?')) {
+                socket.emit('execute_command', { socket_id: socketId, command: command });
+            }
+        }
+    </script>
+</head>
+<body>
+    <img src="{{ url_for('static', filename='donlogo.jpg') }}">
+    <h1>Fleet Management</h1>
+
+    <div style="position: absolute; top: 2%; right: 2%;">
+        <a href="/dashboard">Dashboard</a> | <a href="/logout">Logout</a>
+    </div>
+
+    <div style="position: absolute; top: 15%; left: 5%; width: 90%;">
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+            <tr style="background: #f0f0f0;">
+                <th>Device</th>
+                <th>IP Address</th>
+                <th>MAC Address</th>
+                <th>Status</th>
+                <th>CPU Temp</th>
+                <th>Uptime</th>
+                <th>Active Presentation</th>
+                <th>Last Seen</th>
+                <th>Actions</th>
+            </tr>
+            {% for c in clients %}
+            <tr id="client-{{ c.id }}">
+                <td>{{ c.name }}</td>
+                <td>{{ c.ip_address or 'N/A' }}</td>
+                <td>{{ c.mac_address or 'N/A' }}</td>
+                <td class="status" style="color: {{ 'green' if c.is_online else 'red' }};">
+                    {{ 'Online' if c.is_online else 'Offline' }}
+                </td>
+                <td class="cpu-temp">{{ '%.1f°C' % c.cpu_temp if c.cpu_temp else 'N/A' }}</td>
+                <td class="uptime">
+                    {% if c.uptime_seconds %}
+                    {{ (c.uptime_seconds // 3600) }}h {{ ((c.uptime_seconds % 3600) // 60) }}m
+                    {% else %}N/A{% endif %}
+                </td>
+                <td class="active-presentation">{{ c.active_presentation or 'None' }}</td>
+                <td class="last-seen">
+                    {% if c.last_seen %}{{ c.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}{% else %}Never{% endif %}
+                </td>
+                <td>
+                    {% if c.socket_id and c.is_online %}
+                    <button onclick="sendCommand('{{ c.socket_id }}', 'reload')" style="background:#007bff;color:#fff;">Reload Presentation</button>
+                    <button onclick="sendCommand('{{ c.socket_id }}', 'reboot')" style="background:#dc3545;color:#fff;">Reboot Device</button>
+                    {% else %}
+                    <em>Offline</em>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not clients %}
+            <tr><td colspan="9" style="text-align:center;">No devices registered yet. Connect a Pi client.</td></tr>
+            {% endif %}
+        </table>
+    </div>
+</body>
+</html>

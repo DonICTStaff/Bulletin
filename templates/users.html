@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styleuploads.css') }}">
+    <title>User Management</title>
+</head>
+<body>
+    <img src="{{ url_for('static', filename='donlogo.jpg') }}">
+    <h1>User Management</h1>
+
+    <div style="position: absolute; top: 2%; right: 2%;">
+        <a href="/dashboard">Dashboard</a> | <a href="/logout">Logout</a>
+    </div>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div style="padding: 10px; margin: 5px 0; border-radius: 4px;
+                {% if category == 'error' %}background: #f8d7da; color: #721c24;
+                {% else %}background: #d4edda; color: #155724;{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <!-- Create User Form -->
+    <div style="position: absolute; top: 15%; left: 10%; width: 35%;">
+        <h2>Create New User</h2>
+        <form method="post" action="/users/create">
+            <label>Username:</label><br>
+            <input type="text" name="username" required><br><br>
+            <label>Password:</label><br>
+            <input type="password" name="password" required><br><br>
+            <label>Role:</label><br>
+            <select name="role">
+                <option value="operator">Operator</option>
+                <option value="admin">Administrator</option>
+            </select><br><br>
+            <input type="submit" value="Create User">
+        </form>
+    </div>
+
+    <!-- User List -->
+    <div style="position: absolute; top: 15%; right: 5%; width: 40%;">
+        <h2>Existing Users</h2>
+        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%;">
+            <tr style="background: #f0f0f0;">
+                <th>Username</th>
+                <th>Role</th>
+                <th>Created</th>
+                <th>Actions</th>
+            </tr>
+            {% for u in users %}
+            <tr>
+                <td>{{ u.username }}</td>
+                <td>{{ u.role }}</td>
+                <td>{{ u.created_at.strftime('%Y-%m-%d') }}</td>
+                <td>
+                    {% if u.id != current_user.id %}
+                    <form method="post" action="/users/{{ u.id }}/delete" style="display:inline;"
+                          onsubmit="return confirm('Delete user {{ u.username }}?');">
+                        <button type="submit" style="background:#dc3545;color:#fff;">Delete</button>
+                    </form>
+                    {% else %}
+                    <em>(you)</em>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</body>
+</html>
