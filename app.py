@@ -67,6 +67,8 @@ class ClientDevice(db.Model):
     uptime_seconds = db.Column(db.Integer)
     active_presentation = db.Column(db.String(256))
     socket_id = db.Column(db.String(128))  # WebSocket SID for targeted commands
+    api_key = db.Column(db.String(64), unique=True, nullable=True)  # Auth key for WebSocket registration
+    registered_at = db.Column(db.DateTime)  # When the client first registered
 
 
 # ── RBAC Decorator ────────────────────────────────────────────────────────────
@@ -290,6 +292,58 @@ def api_active_presentation():
     })
 
 
+@app.route('/api/register', methods=['POST'])
+def api_register():
+    """Pre-register a client device and return an API key.
+
+    The client daemon calls this on first boot to get a persistent key.
+    Subsequent connections use the key for authentication.
+
+    POST JSON: {
+        "client_id": "library-north",   # optional
+        "name": "Library North Display", # optional
+        "mac_address": "aa:bb:cc:dd:ee:ff"  # optional
+    }
+    """
+    data = request.get_json(silent=True) or {}
+    client_id = data.get('client_id', '').strip()
+    name = data.get('name', 'Unnamed Device')
+    mac = data.get('mac_address', '')
+
+    # Look up existing
+    client = None
+    if client_id:
+        client = ClientDevice.query.filter_by(client_id=client_id).first()
+    if not client and mac:
+        client = ClientDevice.query.filter_by(mac_address=mac).first()
+
+    is_new = False
+    if not client:
+        client = ClientDevice(name=name, mac_address=mac)
+        is_new = True
+
+    client.name = name
+    if client_id:
+        client.client_id = client_id
+    if mac:
+        client.mac_address = mac
+    if is_new or not client.api_key:
+        client.api_key = secrets.token_hex(32)
+        client.registered_at = datetime.utcnow()
+
+    if is_new:
+        db.session.add(client)
+
+    db.session.commit()
+
+    return jsonify({
+        'status': 'ok',
+        'client_id': client.id,
+        'api_key': client.api_key,
+        'is_new': is_new,
+    })
+
+
 @app.route('/api/clients')
 def api_clients():
     """Return all registered client devices."""
@@ -409,21 +463,43 @@ def handle_disconnect():
 
 @socketio.on('client_register')
 def handle_client_register(data):
-    """Pi client registers itself on connection."""
+    """Pi client registers itself on connection.
+
+    Expected data: {
+        'name': 'Display Name',
+        'client_id': 'library-north',  # optional, user-assigned
+        'mac_address': 'aa:bb:cc:dd:ee:ff',
+        'api_key': 'optional-pre-registered-key'
+    }
+
+    If api_key is provided and matches an existing client, that client is
+    updated. Otherwise a new client is created and issued a fresh API key.
+    """
     name = data.get('name', 'Unnamed Device')
     ip = request.remote_addr
     mac = data.get('mac_address', '')
     client_id = data.get('client_id', '').strip()
+    api_key = data.get('api_key', '').strip()
 
-    # Look up by client_id first, then by MAC
     client = None
-    if client_id:
+
+    # 1. Look up by API key (pre-registered clients)
+    if api_key:
+        client = ClientDevice.query.filter_by(api_key=api_key).first()
+
+    # 2. Look up by client_id
+    if not client and client_id:
         client = ClientDevice.query.filter_by(client_id=client_id).first()
+
+    # 3. Look up by MAC address
     if not client and mac:
         client = ClientDevice.query.filter_by(mac_address=mac).first()
 
+    # 4. Create new client
+    is_new = False
     if not client:
         client = ClientDevice(name=name, mac_address=mac)
+        is_new = True
 
     # Update fields
     client.name = name
@@ -436,8 +512,25 @@ def handle_client_register(data):
     if mac:
         client.mac_address = mac
 
+    # Generate API key for new clients
+    if is_new or not client.api_key:
+        client.api_key = secrets.token_hex(32)
+        client.registered_at = datetime.utcnow()
+
+    if is_new:
+        db.session.add(client)
+
     db.session.commit()
-    emit('registration_ack', {'status': 'ok', 'client_id': client.id})
+
+    print(f'[REGISTER] client_id={client.client_id or "unregistered"}, '
+          f'name={client.name}, ip={ip}, new={is_new}, key={client.api_key[:8]}...')
+
+    emit('registration_ack', {
+        'status': 'ok',
+        'client_id': client.id,
+        'api_key': client.api_key,  # Client stores this for future connections
+        'is_new': is_new,
+    })
 
 
 @socketio.on('telemetry_update')

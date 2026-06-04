@@ -49,6 +49,41 @@ TELEMETRY_INTERVAL = int(os.environ.get('BULLETIN_TELEMETRY_INTERVAL', '60'))
 RECONNECT_BASE_DELAY = 5
 RECONNECT_MAX_DELAY = 300
 
+# ── API Key persistence ───────────────────────────────────────────────────────
+API_KEY_FILE = os.path.join(CACHE_DIR, '.api_key')
+
+def load_api_key():
+    """Load API key from disk if it exists."""
+    # Check multiple locations: cache dir, install dir, env var
+    search_paths = [
+        API_KEY_FILE,
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), '.api_key'),
+        '/opt/bulletin-client/.api_key',
+    ]
+    for path in search_paths:
+        try:
+            if os.path.exists(path):
+                with open(path, 'r') as f:
+                    key = f.read().strip()
+                    if key:
+                        return key
+        except Exception:
+            pass
+    return None
+
+def save_api_key(key):
+    """Persist API key to disk so it survives reboots."""
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        with open(API_KEY_FILE, 'w') as f:
+            f.write(key)
+        os.chmod(API_KEY_FILE, 0o600)
+    except Exception as e:
+        print(f"WARNING: Could not save API key: {e}")
+
+# Load persisted key on startup
+API_KEY = load_api_key()
+
 # ── Globals ───────────────────────────────────────────────────────────────────
 sio = socketio.Client(reconnection=True, reconnection_delay=RECONNECT_BASE_DELAY,
                        reconnection_delay_max=RECONNECT_MAX_DELAY)
@@ -194,6 +229,7 @@ def connect():
         'name': DEVICE_NAME,
         'client_id': CLIENT_ID,
         'mac_address': get_mac_address(),
+        'api_key': API_KEY or '',
     })
 
 
@@ -204,7 +240,14 @@ def disconnect():
 
 @sio.event
 def registration_ack(data):
-    print(f"Registered with server: {data}")
+    """Server confirmed registration. Save API key for future connections."""
+    global API_KEY
+    if data.get('api_key'):
+        API_KEY = data['api_key']
+        save_api_key(API_KEY)
+        print(f"Registered with server (key: {API_KEY[:8]}...)")
+    else:
+        print(f"Registered with server: {data}")
 
 
 @sio.event
@@ -281,6 +324,10 @@ def main():
     print(f"  Hostname:  {DEVICE_NAME}")
     print(f"  MAC:       {get_mac_address()}")
     print(f"  Cache:     {CACHE_DIR}")
+    if API_KEY:
+        print(f"  API Key:   {API_KEY[:8]}... (persisted)")
+    else:
+        print(f"  API Key:   (none -- will register as new client)")
 
     filepath = download_presentation()
     if filepath:

@@ -158,7 +158,7 @@ if [[ $EUID -ne 0 ]]; then
     error "This installer must be run as root (use sudo)."
 fi
 
-TOTAL_STEPS=7
+TOTAL_STEPS=8
 
 # ── Step 1: System dependencies ───────────────────────────────────────────────
 step 1 $TOTAL_STEPS "Installing system packages"
@@ -216,8 +216,33 @@ EOF
 chmod 600 "${INSTALL_DIR}/config.env"
 success "Configuration saved to ${INSTALL_DIR}/config.env"
 
-# ── Step 5: Systemd service ───────────────────────────────────────────────────
-step 5 $TOTAL_STEPS "Creating systemd service"
+# ── Step 5: Register with server ──────────────────────────────────────────────
+step 5 $TOTAL_STEPS "Registering with server"
+spinner_start "Requesting API key from server..."
+API_KEY=$(curl -fsSL -X POST "${SERVER_URL}/api/register" \
+    -H "Content-Type: application/json" \
+    -d "{\"client_id\":\"${CLIENT_ID}\",\"name\":\"${DEVICE_NAME}\"}" \
+    2>/dev/null | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    print(d.get('api_key', ''))
+except:
+    print('')
+" 2>/dev/null)
+
+if [[ -n "$API_KEY" ]]; then
+    # Save API key to a separate file the daemon can load
+    echo "$API_KEY" > "${INSTALL_DIR}/.api_key"
+    chmod 600 "${INSTALL_DIR}/.api_key"
+    spinner_stop "Registered (key: ${API_KEY[:8]}...)"
+else
+    spinner_stop "Could not register (will retry on first connection)"
+    warn "Server may be unreachable. Client will register via WebSocket on first connect."
+fi
+
+# ── Step 6: Systemd service ───────────────────────────────────────────────────
+step 6 $TOTAL_STEPS "Creating systemd service"
 KIOSK_USER="${SUDO_USER:-pi}"
 
 cat > "/etc/systemd/system/${SERVICE_NAME}.service" << SVCEOF
