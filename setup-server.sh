@@ -195,18 +195,27 @@ step 4 $TOTAL_STEPS "Initializing database"
 spinner_start "Creating database and admin user..."
 SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
 export BULLETIN_SECRET_KEY="${SECRET_KEY}"
+export BULLETIN_ADMIN_PASSWORD="${ADMIN_PASS}"
 source "${VENV_DIR}/bin/activate"
 python3 -c "
+import os
 from app import app, init_db, db, User
 with app.app_context():
     init_db()
     from werkzeug.security import generate_password_hash
     admin = User.query.filter_by(username='admin').first()
     if admin:
-        admin.password_hash = generate_password_hash('${ADMIN_PASS}')
+        admin.password_hash = generate_password_hash(os.environ['BULLETIN_ADMIN_PASSWORD'])
         db.session.commit()
-" > /dev/null 2>&1
+" 2>&1
+ACTIVATION_STATUS=$?
 deactivate
+if [[ $ACTIVATION_STATUS -ne 0 ]]; then
+    spinner_stop "Failed (see error above)"
+    echo ""
+    error "Database initialization failed. Check the error output above."
+fi
+unset BULLETIN_ADMIN_PASSWORD
 spinner_stop "Database initialized"
 
 # ── Step 5: Config ────────────────────────────────────────────────────────────
