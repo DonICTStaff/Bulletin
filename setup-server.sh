@@ -37,8 +37,15 @@ echo "=============================================="
 echo ""
 
 # ── Interactive Configuration ─────────────────────────────────────────────────
-read -rp "Enter the admin password for the web dashboard [Library24!]: " ADMIN_PASS
-ADMIN_PASS="${ADMIN_PASS:-Library24!}"
+# ── Interactive Configuration ─────────────────────────────────────────────────
+while true; do
+    read -rp "Enter the admin password for the web dashboard: " ADMIN_PASS
+    ADMIN_PASS="${ADMIN_PASS:-}"
+    if [[ -n "$ADMIN_PASS" ]]; then
+        break
+    fi
+    warn "Admin password cannot be empty."
+done
 
 read -rp "Enter the server hostname/domain [bulletin-server]: " SERVER_HOSTNAME
 SERVER_HOSTNAME="${SERVER_HOSTNAME:-bulletin-server}"

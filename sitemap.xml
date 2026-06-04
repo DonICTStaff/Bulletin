@@ -1,37 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-
    <url>
-      <loc>http://don-bulletin-library:5000</loc>
-
-      <lastmod>2024-08-01</lastmod>
-
+      <loc>http://YOUR_HOSTNAME:5000</loc>
       <changefreq>N/A</changefreq>
-
       <priority>0.8</priority>
-
    </url>
-
    <url>
-      <loc>http://don-bulletin-library:5000/uploads</loc>
-
-      <lastmod>2024-08-01</lastmod>
-
+      <loc>http://YOUR_HOSTNAME:5000/uploads</loc>
       <changefreq>N/A</changefreq>
-
-      <priority>0.7</changefreq>
-
+      <priority>0.7</priority>
    </url>
-
    <url>
-      <loc>http://don-bulletin-library:5000/changelog</loc>
-      
-      <lastmod>2024-08-01</lastmod>
-
+      <loc>http://YOUR_HOSTNAME:5000/changelog</loc>
       <changefreq>N/A</changefreq>
-
       <priority>0.6</priority>
    </url>
-
 </urlset>

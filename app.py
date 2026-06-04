@@ -497,14 +497,17 @@ def init_db():
     """Create tables and seed default admin user if none exist."""
     db.create_all()
     if not User.query.filter_by(username='admin').first():
+        default_pass = os.environ.get('BULLETIN_ADMIN_PASSWORD', 'changeme')
         admin = User(
             username='admin',
-            password_hash=generate_password_hash('Library24!'),
+            password_hash=generate_password_hash(default_pass),
             role='admin'
         )
         db.session.add(admin)
         db.session.commit()
-        print('Default admin user created (admin / Library24!)')
+        print(f'Default admin user created (admin / {default_pass})')
+        if default_pass == 'changeme':
+            print('WARNING: Using default password "changeme". Change it immediately or set BULLETIN_ADMIN_PASSWORD env var.')
 
 
 if __name__ == '__main__':
