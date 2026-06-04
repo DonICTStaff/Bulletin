@@ -5,14 +5,14 @@ A client-server digital signage system for Don College. Upload a PowerPoint slid
 ## How It Works
 
 ```
-┌──────────────────────┐                            ┌──────────────────────┐
-│                      │ ──── new presentation ──► │                      │
-│   Ubuntu Server      │         WebSocket push    │   Raspberry Pi       │
-│                      │ ◄──── telemetry (60s) ── │   (Kiosk Client)     │
-│   Flask + Nginx      │                            │                      │
-│                      │ ──── remote commands ───► │   LibreOffice        │
-│   Admin Dashboard    │                            │   Impress (kiosk)    │
-└──────────────────────┘                            └──────────────────────┘
+┌──────────────────────┐                          ┌──────────────────────┐
+│                      │ ──── new presentation ─► │                      │
+│   Ubuntu Server      │        WebSocket push    │   Raspberry Pi       │
+│                      │ ◄─── telemetry (60s) ─── │   (Kiosk Client)     │
+│   Flask + Nginx      │                          │                      │
+│                      │ ──── remote commands ──► │   LibreOffice        │
+│   Admin Dashboard    │                          │   Impress (kiosk)    │
+└──────────────────────┘                          └──────────────────────┘
 ```
 
 1. **Upload** a `.pptx` file via the web dashboard
