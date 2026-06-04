@@ -1,38 +1,39 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <title>Login — Bulletin Board</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="login-page">
-        <div class="login-card">
+    <a href="#main" class="skip-link">Skip to main content</a>
+
+    <main class="login-page" id="main">
+        <div class="login-card" role="main">
             <div class="login-card__logo">
-                <img src="{{ url_for('static', filename='donlogo.jpg') }}" alt="Don College">
+                <img src="{{ url_for('static', filename='donlogo.jpg') }}" alt="Don College logo">
                 <div class="login-card__title">Bulletin Board</div>
                 <div class="login-card__subtitle">Sign in to manage digital signage</div>
             </div>
 
             {% if error %}
-            <div class="alert alert--error">
-                <span>⚠</span> {{ error }}
+            <div class="alert alert--error" role="alert">
+                <span aria-hidden="true">⚠</span> {{ error }}
             </div>
             {% endif %}
 
-            <form method="post" action="/">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <form method="post" action="/" novalidate>
                 <div class="form-group">
                     <label class="form-label" for="username">Username</label>
                     <input class="form-input" type="text" id="username" name="username"
                            placeholder="Enter your username" value="{{ request.form.username }}"
-                           autofocus>
+                           autocomplete="username" autofocus required>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="password">Password</label>
                     <input class="form-input" type="password" id="password" name="password"
-                           placeholder="Enter your password">
+                           placeholder="Enter your password" autocomplete="current-password" required>
                 </div>
                 <button class="btn btn--primary" type="submit" style="width:100%">Sign In</button>
             </form>
@@ -41,6 +42,6 @@
                 <a href="/changelog">View Changelog</a>
             </div>
         </div>
-    </div>
+    </main>
 </body>
 </html>

@@ -1,215 +1,180 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <title>Fleet Management — Bulletin Board</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script>
         const socket = io();
+        socket.on('connect', function() { console.log('WS connected'); });
+        socket.on('fleet_update', function(data) { updateRow(data); });
 
-        socket.on('connect', function() {
-            console.log('WebSocket connected for fleet updates');
-        });
-
-        socket.on('fleet_update', function(data) {
-            updateClientRow(data);
-        });
-
-        function updateClientRow(data) {
+        function updateRow(data) {
             const row = document.getElementById('client-' + data.client_id);
             if (!row) return;
-
-            const statusEl = row.querySelector('.status-badge');
+            const dot = row.querySelector('.status__dot');
+            const status = row.querySelector('.status');
             if (data.is_online) {
-                statusEl.className = 'badge badge--success status-badge';
-                statusEl.textContent = '● Online';
+                status.className = 'status status--online';
+                status.innerHTML = '<span class="status__dot"></span> Online';
             } else {
-                statusEl.className = 'badge badge--danger status-badge';
-                statusEl.textContent = '○ Offline';
+                status.className = 'status status--offline';
+                status.innerHTML = '<span class="status__dot"></span> Offline';
             }
-
             row.querySelector('.cpu-temp').textContent = data.cpu_temp ? data.cpu_temp.toFixed(1) + ' °C' : '—';
-            row.querySelector('.uptime').textContent = data.uptime ? formatUptime(data.uptime) : '—';
-            row.querySelector('.active-presentation').textContent = data.active_presentation || '—';
+            row.querySelector('.uptime').textContent = data.uptime ? fmtUptime(data.uptime) : '—';
+            row.querySelector('.presentation').textContent = data.active_presentation || '—';
             row.querySelector('.last-seen').textContent = data.last_seen || '—';
-
-            const btnCell = row.querySelector('.actions');
-            if (data.is_online) {
-                btnCell.innerHTML = `
-                    <button onclick="sendCommand(${data.client_id}, 'reload')" class="btn btn--sm btn--ghost">Reload</button>
-                    <button onclick="sendCommand(${data.client_id}, 'reboot')" class="btn btn--sm btn--danger">Reboot</button>
-                `;
-            } else {
-                btnCell.innerHTML = '<span style="color:var(--text-muted); font-size:.8rem;">Offline</span>';
-            }
         }
 
-        function formatUptime(seconds) {
-            const d = Math.floor(seconds / 86400);
-            const h = Math.floor((seconds % 86400) / 3600);
-            const m = Math.floor((seconds % 3600) / 60);
-            if (d > 0) return d + 'd ' + h + 'h ' + m + 'm';
-            return h + 'h ' + m + 'm';
+        function fmtUptime(s) {
+            const d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60);
+            return d>0?d+'d '+h+'h':h+'h '+m+'m';
         }
 
-        async function sendCommand(dbId, command) {
-            if (!confirm('Send "' + command + '" to this device?')) return;
-            try {
-                const resp = await fetch('/api/clients/' + dbId + '/command', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ command: command, admin_token: window.ADMIN_TOKEN })
-                });
-                const data = await resp.json();
-                if (resp.ok) {
-                    alert('Command "' + command + '" sent to ' + data.client);
-                } else {
-                    alert('Error: ' + (data.error || 'Unknown error'));
-                }
-            } catch (err) {
-                alert('Failed to send command: ' + err);
-            }
+        async function sendCommand(id, cmd) {
+            if (!confirm('Send "' + cmd + '" to this device?')) return;
+            const r = await fetch('/api/clients/' + id + '/command', {
+                method:'POST', headers:{'Content-Type':'application/json'},
+                body: JSON.stringify({command:cmd, admin_token:window.ADMIN_TOKEN})
+            });
+            const d = await r.json();
+            alert(r.ok ? 'Command "' + cmd + '" sent to ' + d.client : 'Error: ' + (d.error || 'Unknown'));
         }
     </script>
 </head>
 <body>
+    <a href="#main" class="skip-link">Skip to main content</a>
     <script>window.ADMIN_TOKEN=*** config['SECRET_KEY'] }}";</script>
+
     <div class="shell">
+        <nav class="sidebar" role="navigation" aria-label="Main navigation">
             <div class="sidebar__brand">
                 <img src="{{ url_for('static', filename='donlogo.jpg') }}" alt="Don College">
                 <div>
-                    <div class="sidebar__brand-text">Bulletin</div>
+                    <div class="sidebar__brand-name">Bulletin</div>
                     <div class="sidebar__brand-sub">Digital Signage</div>
                 </div>
             </div>
-
             <div class="sidebar__nav">
                 <div class="sidebar__section">Main</div>
                 <a href="/dashboard" class="sidebar__link">
-                    <span class="sidebar__link-icon">📊</span> Dashboard
+                    <span class="sidebar__link-icon" aria-hidden="true">📊</span> Dashboard
                 </a>
                 {% if current_user.is_admin() %}
                 <div class="sidebar__section">Administration</div>
-                <a href="/fleet" class="sidebar__link active">
-                    <span class="sidebar__link-icon">🖥</span> Fleet Management
+                <a href="/fleet" class="sidebar__link active" aria-current="page">
+                    <span class="sidebar__link-icon" aria-hidden="true">🖥</span> Fleet Management
                 </a>
                 <a href="/users" class="sidebar__link">
-                    <span class="sidebar__link-icon">👥</span> Users
+                    <span class="sidebar__link-icon" aria-hidden="true">👥</span> Users
                 </a>
                 {% endif %}
                 <div class="sidebar__section">Info</div>
                 <a href="/changelog" class="sidebar__link">
-                    <span class="sidebar__link-icon">📋</span> Changelog
+                    <span class="sidebar__link-icon" aria-hidden="true">📋</span> Changelog
                 </a>
             </div>
-
             <div class="sidebar__footer">
-                <div class="sidebar__user">{{ current_user.username }}
-                    <span class="badge badge--muted" style="font-size:.65rem; margin-left:4px;">{{ current_user.role }}</span>
+                <div>
+                    <div class="sidebar__user">{{ current_user.username }}</div>
+                    <div class="sidebar__user-role">{{ current_user.role }}</div>
                 </div>
-                <a href="/logout" style="color:#94a3b8; font-size:.8rem;">Sign out</a>
+                <div style="display:flex;gap:var(--space-2);align-items:center;">
+                    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
+                        <span id="theme-icon">🌙</span>
+                    </button>
+                    <a href="/logout" class="btn btn--sm btn--secondary">Sign out</a>
+                </div>
             </div>
         </nav>
 
-        <!-- Main content -->
         <div class="main">
-            <header class="header">
-                <div class="header__title">Fleet Management</div>
-                <div class="header__actions">
-                    {% set online_count = clients|selectattr('is_online')|list|length %}
-                    <span class="badge badge--{{ 'success' if online_count > 0 else 'muted' }}">
-                        {{ online_count }} / {{ clients|length }} online
-                    </span>
-                </div>
+            <header class="topbar">
+                <h1 class="topbar__title">Fleet Management</h1>
+                {% set online_count = clients|selectattr('is_online')|list|length %}
+                <span class="status {{ 'status--online' if online_count > 0 else 'status--offline' }}">
+                    <span class="status__dot"></span> {{ online_count }} / {{ clients|length }} online
+                </span>
             </header>
 
-            <div class="content">
+            <main class="content" id="main">
                 {% if clients %}
-                <div class="card">
-                    <div class="card__body" style="padding:0;">
-                        <div class="table-wrap">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>Client ID</th>
-                                        <th>Name</th>
-                                        <th>Status</th>
-                                        <th>IP Address</th>
-                                        <th>CPU Temp</th>
-                                        <th>Uptime</th>
-                                        <th>Presentation</th>
-                                        <th>Last Seen</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                {% for c in clients %}
-                                <tr id="client-{{ c.id }}">
-                                    <td>
-                                        {% if c.client_id %}
-                                        <span class="badge badge--primary">{{ c.client_id }}</span>
-                                        {% else %}
-                                        <em style="color:var(--text-muted);">—</em>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ c.name }}</td>
-                                    <td>
-                                        {% if c.is_online %}
-                                        <span class="badge badge--success status-badge">● Online</span>
-                                        {% else %}
-                                        <span class="badge badge--danger status-badge">○ Offline</span>
-                                        {% endif %}
-                                    </td>
-                                    <td style="font-family:var(--font-mono); font-size:.8rem; color:var(--text-muted);">
-                                        {{ c.ip_address or '—' }}
-                                    </td>
-                                    <td class="cpu-temp" style="font-size:.85rem;">
-                                        {% if c.cpu_temp %}{{ '%.1f °C' % c.cpu_temp }}{% else %}—{% endif %}
-                                    </td>
-                                    <td class="uptime" style="font-size:.85rem;">
-                                        {% if c.uptime_seconds %}
-                                        {{ (c.uptime_seconds // 3600) }}h {{ ((c.uptime_seconds % 3600) // 60) }}m
-                                        {% else %}—{% endif %}
-                                    </td>
-                                    <td class="active-presentation" style="font-size:.8rem; color:var(--text-muted);">
-                                        {{ c.active_presentation or '—' }}
-                                    </td>
-                                    <td class="last-seen" style="font-size:.8rem; color:var(--text-muted);">
-                                        {% if c.last_seen %}{{ c.last_seen.strftime('%d %b %H:%M') }}{% else %}Never{% endif %}
-                                    </td>
-                                    <td class="actions">
-                                        {% if c.socket_id and c.is_online %}
-                                        <button onclick="sendCommand({{ c.id }}, 'reload')" class="btn btn--sm btn--ghost">Reload</button>
-                                        <button onclick="sendCommand({{ c.id }}, 'reboot')" class="btn btn--sm btn--danger">Reboot</button>
-                                        {% else %}
-                                        <span style="color:var(--text-muted); font-size:.8rem;">Offline</span>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                <div class="table-wrap">
+                    <table role="grid">
+                        <thead>
+                            <tr>
+                                <th>Client ID</th>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th>IP Address</th>
+                                <th>CPU Temp</th>
+                                <th>Uptime</th>
+                                <th>Presentation</th>
+                                <th>Last Seen</th>
+                                <th style="text-align:right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        {% for c in clients %}
+                        <tr id="client-{{ c.id }}">
+                            <td>
+                                {% if c.client_id %}<span class="code">{{ c.client_id }}</span>
+                                {% else %}<span style="color:var(--text-muted);">—</span>{% endif %}
+                            </td>
+                            <td>{{ c.name }}</td>
+                            <td>
+                                <span class="status {{ 'status--online' if c.is_online else 'status--offline' }}">
+                                    <span class="status__dot"></span> {{ 'Online' if c.is_online else 'Offline' }}
+                                </span>
+                            </td>
+                            <td style="font-family:'SF Mono',monospace; font-size:var(--text-xs);">{{ c.ip_address or '—' }}</td>
+                            <td class="cpu-temp">{% if c.cpu_temp %}{{ '%.1f °C' % c.cpu_temp }}{% else %}—{% endif %}</td>
+                            <td class="uptime">{% if c.uptime_seconds %}{{ (c.uptime_seconds//3600) }}h {{ ((c.uptime_seconds%3600)//60) }}m{% else %}—{% endif %}</td>
+                            <td class="presentation">{{ c.active_presentation or '—' }}</td>
+                            <td class="last-seen" style="white-space:nowrap;">{% if c.last_seen %}{{ c.last_seen.strftime('%d %b %H:%M') }}{% else %}Never{% endif %}</td>
+                            <td style="text-align:right; white-space:nowrap;">
+                                {% if c.socket_id and c.is_online %}
+                                <button onclick="sendCommand({{ c.id }}, 'reload')" class="btn btn--sm btn--secondary">Reload</button>
+                                <button onclick="sendCommand({{ c.id }}, 'reboot')" class="btn btn--sm btn--danger">Reboot</button>
+                                {% else %}
+                                <span style="color:var(--text-muted); font-size:var(--text-xs);">Offline</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
                 {% else %}
                 <div class="card">
-                    <div class="card__body" style="text-align:center; padding:48px;">
-                        <div style="font-size:3rem; margin-bottom:16px;">🖥️</div>
-                        <h3 style="margin-bottom:8px;">No devices registered yet</h3>
-                        <p style="color:var(--text-muted); margin-bottom:24px;">
-                            Deploy a kiosk client to get started.
-                        </p>
-                        <code style="background:var(--surface-alt); padding:12px 20px; border-radius:var(--radius); display:inline-block; font-size:.85rem;">
-                            curl -fsSL https://raw.githubusercontent.com/DonICTStaff/Bulletin/main/deploy-client.sh | sudo bash
-                        </code>
+                    <div class="card__body">
+                        <div class="empty">
+                            <div class="empty__title">No devices registered</div>
+                            <div class="empty__text">Deploy a kiosk client to get started:</div>
+                            <code class="code">curl -fsSL https://raw.githubusercontent.com/DonICTStaff/Bulletin/main/deploy-client.sh | sudo bash</code>
+                        </div>
                     </div>
                 </div>
                 {% endif %}
-            </div>
+            </main>
         </div>
     </div>
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            document.getElementById('theme-icon').textContent = isDark ? '🌙' : '☀️';
+            localStorage.setItem('theme', isDark ? 'light' : 'dark');
+        }
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            const icon = document.getElementById('theme-icon');
+            if (icon) icon.textContent = '☀️';
+        }
+    </script>
 </body>
 </html>

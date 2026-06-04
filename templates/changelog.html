@@ -1,44 +1,66 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <title>Changelog — Bulletin Board</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+    <a href="#main" class="skip-link">Skip to main content</a>
+
     <div class="shell">
-        <nav class="sidebar">
+        <nav class="sidebar" role="navigation" aria-label="Main navigation">
             <div class="sidebar__brand">
                 <img src="{{ url_for('static', filename='donlogo.jpg') }}" alt="Don College">
                 <div>
-                    <div class="sidebar__brand-text">Bulletin</div>
+                    <div class="sidebar__brand-name">Bulletin</div>
                     <div class="sidebar__brand-sub">Digital Signage</div>
                 </div>
             </div>
             <div class="sidebar__nav">
                 <div class="sidebar__section">Info</div>
-                <a href="/changelog" class="sidebar__link active">
-                    <span class="sidebar__link-icon">📋</span> Changelog
+                <a href="/changelog" class="sidebar__link active" aria-current="page">
+                    <span class="sidebar__link-icon" aria-hidden="true">📋</span> Changelog
                 </a>
             </div>
             <div class="sidebar__footer">
-                <a href="/" style="color:#94a3b8; font-size:.8rem;">Back to login</a>
+                <div style="display:flex;gap:var(--space-2);align-items:center;width:100%;justify-content:space-between;">
+                    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
+                        <span id="theme-icon">🌙</span>
+                    </button>
+                    <a href="/" class="btn btn--sm btn--secondary">Back to login</a>
+                </div>
             </div>
         </nav>
 
         <div class="main">
-            <header class="header">
-                <div class="header__title">Changelog</div>
+            <header class="topbar">
+                <h1 class="topbar__title">Changelog</h1>
             </header>
-            <div class="content">
+
+            <main class="content" id="main">
                 <div class="card">
                     <div class="card__body">
-                        <pre style="font-family:var(--font); font-size:.9rem; line-height:1.8; white-space:pre-wrap; color:var(--text);">{{ content }}</pre>
+                        <pre style="font-family:inherit; font-size:var(--text-sm); line-height:1.8; white-space:pre-wrap; color:var(--text);">{{ content }}</pre>
                     </div>
                 </div>
-            </div>
+            </main>
         </div>
     </div>
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            document.getElementById('theme-icon').textContent = isDark ? '🌙' : '☀️';
+            localStorage.setItem('theme', isDark ? 'light' : 'dark');
+        }
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            const icon = document.getElementById('theme-icon');
+            if (icon) icon.textContent = '☀️';
+        }
+    </script>
 </body>
 </html>

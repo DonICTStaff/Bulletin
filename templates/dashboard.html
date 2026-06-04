@@ -1,194 +1,196 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <title>Dashboard — Bulletin Board</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+    <a href="#main" class="skip-link">Skip to main content</a>
+
     <div class="shell">
         <!-- Sidebar -->
-        <nav class="sidebar">
+        <nav class="sidebar" role="navigation" aria-label="Main navigation">
             <div class="sidebar__brand">
                 <img src="{{ url_for('static', filename='donlogo.jpg') }}" alt="Don College">
                 <div>
-                    <div class="sidebar__brand-text">Bulletin</div>
+                    <div class="sidebar__brand-name">Bulletin</div>
                     <div class="sidebar__brand-sub">Digital Signage</div>
                 </div>
             </div>
 
             <div class="sidebar__nav">
                 <div class="sidebar__section">Main</div>
-                <a href="/dashboard" class="sidebar__link active">
-                    <span class="sidebar__link-icon">📊</span> Dashboard
+                <a href="/dashboard" class="sidebar__link active" aria-current="page">
+                    <span class="sidebar__link-icon" aria-hidden="true">📊</span> Dashboard
                 </a>
                 {% if current_user.is_admin() %}
                 <div class="sidebar__section">Administration</div>
                 <a href="/fleet" class="sidebar__link">
-                    <span class="sidebar__link-icon">🖥</span> Fleet Management
+                    <span class="sidebar__link-icon" aria-hidden="true">🖥</span> Fleet Management
                 </a>
                 <a href="/users" class="sidebar__link">
-                    <span class="sidebar__link-icon">👥</span> Users
+                    <span class="sidebar__link-icon" aria-hidden="true">👥</span> Users
                 </a>
                 {% endif %}
                 <div class="sidebar__section">Info</div>
                 <a href="/changelog" class="sidebar__link">
-                    <span class="sidebar__link-icon">📋</span> Changelog
+                    <span class="sidebar__link-icon" aria-hidden="true">📋</span> Changelog
                 </a>
             </div>
 
             <div class="sidebar__footer">
-                <div class="sidebar__user">{{ current_user.username }}
-                    <span class="badge badge--muted" style="font-size:.65rem; margin-left:4px;">{{ current_user.role }}</span>
+                <div>
+                    <div class="sidebar__user">{{ current_user.username }}</div>
+                    <div class="sidebar__user-role">{{ current_user.role }}</div>
                 </div>
-                <a href="/logout" style="color:#94a3b8; font-size:.8rem;">Sign out</a>
+                <div style="display:flex;gap:var(--space-2);align-items:center;">
+                    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
+                        <span id="theme-icon">🌙</span>
+                    </button>
+                    <a href="/logout" class="btn btn--sm btn--secondary">Sign out</a>
+                </div>
             </div>
         </nav>
 
-        <!-- Main content -->
+        <!-- Main -->
         <div class="main">
-            <header class="header">
-                <div class="header__title">Dashboard</div>
-                <div class="header__actions">
-                    <span class="header__user">{{ current_user.username }}</span>
-                </div>
+            <header class="topbar">
+                <h1 class="topbar__title">Dashboard</h1>
+                <span class="topbar__meta">Welcome, {{ current_user.username }}</span>
             </header>
 
-            <div class="content">
+            <main class="content" id="main">
                 <!-- Flash Messages -->
                 {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                 {% for category, message in messages %}
-                <div class="alert alert--{{ 'error' if category == 'error' else 'success' }}">
-                    <span>{{ '⚠' if category == 'error' else '✓' }}</span> {{ message }}
+                <div class="alert alert--{{ 'error' if category == 'error' else 'success' }}" role="alert">
+                    <span aria-hidden="true">{{ '⚠' if category == 'error' else '✓' }}</span> {{ message }}
                 </div>
                 {% endfor %}
                 {% endif %}
                 {% endwith %}
 
                 <!-- Active Presentation -->
-                <div class="card" style="margin-bottom:24px;">
-                    <div class="card__header">
-                        <div class="card__title">Active Presentation</div>
-                        {% if active_slideshow %}
-                        <span class="badge badge--success">Live</span>
-                        {% else %}
-                        <span class="badge badge--muted">None</span>
-                        {% endif %}
-                    </div>
-                    <div class="card__body">
-                        {% if active_slideshow %}
-                        <div style="display:flex; align-items:center; gap:20px;">
-                            <div style="font-size:3rem;">📽️</div>
-                            <div>
-                                <div style="font-size:1.1rem; font-weight:600;">{{ active_slideshow.original_filename }}</div>
-                                <div style="color:var(--text-muted); font-size:.85rem; margin-top:4px;">
-                                    Uploaded {{ active_slideshow.uploaded_at.strftime('%d %b %Y at %H:%M') }}
-                                    by {{ active_slideshow.uploader.username }}
-                                </div>
-                            </div>
-                        </div>
-                        {% else %}
-                        <p style="color:var(--text-muted);">No presentation is currently active. Upload one below to get started.</p>
-                        {% endif %}
-                    </div>
-                </div>
-
-                <!-- Upload + History in a grid -->
-                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px; margin-bottom:24px;">
-                    <!-- Upload -->
+                <section class="section" aria-labelledby="active-heading">
                     <div class="card">
                         <div class="card__header">
-                            <div class="card__title">Upload New</div>
+                            <h2 class="card__title" id="active-heading">Active Presentation</h2>
+                            {% if active_slideshow %}
+                            <span class="status status--live"><span class="status__dot"></span> Live</span>
+                            {% else %}
+                            <span class="status status--offline"><span class="status__dot"></span> None</span>
+                            {% endif %}
+                        </div>
+                        <div class="card__body">
+                            {% if active_slideshow %}
+                            <p style="font-size:var(--text-md); font-weight:600; color:var(--text);">{{ active_slideshow.original_filename }}</p>
+                            <p style="font-size:var(--text-sm); color:var(--text-muted); margin-top:var(--space-1);">
+                                Uploaded {{ active_slideshow.uploaded_at.strftime('%d %b %Y at %H:%M') }} by {{ active_slideshow.uploader.username }}
+                            </p>
+                            {% else %}
+                            <p style="color:var(--text-muted);">No presentation is currently active. Upload one below to get started.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Upload + History -->
+                <div class="grid-2">
+                    <!-- Upload -->
+                    <section class="card" aria-labelledby="upload-heading">
+                        <div class="card__header">
+                            <h2 class="card__title" id="upload-heading">Upload New</h2>
                         </div>
                         <div class="card__body">
                             <form method="post" action="/upload" enctype="multipart/form-data">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                <div class="upload-zone" onclick="document.getElementById('file-input').click()"
-                                     ondragover="event.preventDefault(); this.style.borderColor='var(--primary)'"
-                                     ondragleave="this.style.borderColor=''">
-                                    <div class="upload-zone__icon">📁</div>
-                                    <div class="upload-zone__text">
-                                        Click to browse or drag a <strong>.pptx</strong> file here
-                                    </div>
+                                <div class="upload-zone" role="button" tabindex="0"
+                                     onclick="document.getElementById('file-input').click()"
+                                     onkeydown="if(event.key==='Enter'||event.key===' ')document.getElementById('file-input').click()"
+                                     ondragover="event.preventDefault();this.classList.add('drag')"
+                                     ondragleave="this.classList.remove('drag')"
+                                     ondrop="event.preventDefault();this.classList.remove('drag')">
+                                    <div class="upload-zone__label">Drop a .pptx file here</div>
+                                    <div class="upload-zone__hint">or click to browse your computer</div>
                                     <input type="file" name="file" id="file-input" accept=".ppt,.pptx"
-                                           style="display:none" onchange="
-                                               this.parentElement.querySelector('.upload-zone__text').innerHTML
-                                                   = '<strong>' + this.files[0].name + '</strong><br>Click to change';
-                                               this.parentElement.style.borderColor='var(--success)';
-                                               this.parentElement.style.background='var(--success-light)';
-                                           ">
+                                           style="position:absolute;opacity:0;width:0;height:0" aria-label="Choose file">
                                 </div>
-                                <button class="btn btn--primary" type="submit" style="width:100%; margin-top:16px;">
+                                <button class="btn btn--primary" type="submit" style="width:100%; margin-top:var(--space-3);">
                                     Upload &amp; Activate
                                 </button>
                             </form>
                         </div>
-                    </div>
+                    </section>
 
                     <!-- History -->
-                    <div class="card">
+                    <section class="card" aria-labelledby="history-heading">
                         <div class="card__header">
-                            <div class="card__title">Presentation History</div>
-                            <span class="badge badge--muted">{{ slideshows|length }}</span>
+                            <h2 class="card__title" id="history-heading">History</h2>
+                            <span style="font-size:var(--text-xs); color:var(--text-muted);">{{ slideshows|length }} files</span>
                         </div>
-                        <div class="card__body" style="max-height:320px; overflow-y:auto; padding:0;">
+                        <div class="card__body--compact" style="max-height:360px; overflow-y:auto; padding:0;">
                             {% if slideshows %}
-                            <table style="font-size:.85rem;">
-                                <thead>
-                                    <tr>
-                                        <th>File</th>
-                                        <th>Date</th>
-                                        <th></th>
+                            <div class="table-wrap" style="border:none;">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>File</th>
+                                            <th>Date</th>
+                                            <th style="text-align:right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    {% for s in slideshows %}
+                                    <tr {% if s.is_active %}style="background:var(--success-bg);"{% endif %}>
+                                        <td>
+                                            <strong>{{ s.original_filename }}</strong>
+                                            {% if s.is_active %}<span class="status status--live" style="margin-left:var(--space-2);"><span class="status__dot"></span> Active</span>{% endif %}
+                                        </td>
+                                        <td style="white-space:nowrap;">{{ s.uploaded_at.strftime('%d %b %H:%M') }}</td>
+                                        <td style="text-align:right; white-space:nowrap;">
+                                            <form method="post" action="/slideshow/{{ s.id }}/activate" style="display:inline;">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <button class="btn btn--sm btn--secondary" type="submit" {% if s.is_active %}disabled{% endif %}>Set Active</button>
+                                            </form>
+                                            {% if current_user.is_admin() %}
+                                            <form method="post" action="/slideshow/{{ s.id }}/delete" style="display:inline;"
+                                                  onsubmit="return confirm('Delete this presentation?');">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <button class="btn btn--sm btn--danger" type="submit">Delete</button>
+                                            </form>
+                                            {% endif %}
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                {% for s in slideshows %}
-                                <tr {% if s.is_active %} style="background:var(--success-light);"{% endif %}>
-                                    <td>
-                                        <strong>{{ s.original_filename }}</strong>
-                                        {% if s.is_active %}<span class="badge badge--success" style="margin-left:6px;">Active</span>{% endif %}
-                                    </td>
-                                    <td style="color:var(--text-muted); white-space:nowrap;">
-                                        {{ s.uploaded_at.strftime('%d %b %H:%M') }}
-                                    </td>
-                                    <td style="text-align:right; white-space:nowrap;">
-                                        <form method="post" action="/slideshow/{{ s.id }}/activate" style="display:inline;">
-                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                            <button class="btn btn--sm btn--ghost" type="submit" {% if s.is_active %}disabled{% endif %}>Set Active</button>
-                                        </form>
-                                        {% if current_user.is_admin() %}
-                                        <form method="post" action="/slideshow/{{ s.id }}/delete" style="display:inline;"
-                                              onsubmit="return confirm('Delete this presentation?');">
-                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                            <button class="btn btn--sm btn--danger" type="submit">Delete</button>
-                                        </form>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                                </tbody>
-                            </table>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
                             {% else %}
-                            <p style="color:var(--text-muted); padding:24px; text-align:center;">No presentations uploaded yet.</p>
+                            <div class="empty">
+                                <div class="empty__title">No presentations yet</div>
+                                <div class="empty__text">Upload your first .pptx file to get started.</div>
+                            </div>
                             {% endif %}
                         </div>
-                    </div>
+                    </section>
                 </div>
 
                 <!-- Connected Clients -->
-                <div class="card">
-                    <div class="card__header">
-                        <div class="card__title">Connected Clients</div>
+                <section class="section" aria-labelledby="clients-heading">
+                    <div class="section__header">
+                        <h2 class="section__title" id="clients-heading">Connected Clients</h2>
                         {% set online_count = clients|selectattr('is_online')|list|length %}
-                        <span class="badge badge--{{ 'success' if online_count > 0 else 'muted' }}">
-                            {{ online_count }} / {{ clients|length }} online
+                        <span class="status {{ 'status--online' if online_count > 0 else 'status--offline' }}">
+                            <span class="status__dot"></span> {{ online_count }} / {{ clients|length }} online
                         </span>
                     </div>
-                    <div class="card__body">
-                        {% if clients %}
-                        <table style="font-size:.85rem;">
+
+                    {% if clients %}
+                    <div class="table-wrap">
+                        <table>
                             <thead>
                                 <tr>
                                     <th>Client ID</th>
@@ -204,48 +206,55 @@
                             <tr>
                                 <td>
                                     {% if c.client_id %}
-                                    <span class="badge badge--primary">{{ c.client_id }}</span>
+                                    <span class="code">{{ c.client_id }}</span>
                                     {% else %}
-                                    <em style="color:var(--text-muted);">—</em>
+                                    <span style="color:var(--text-muted);">—</span>
                                     {% endif %}
                                 </td>
                                 <td>{{ c.name }}</td>
                                 <td>
-                                    {% if c.is_online %}
-                                    <span class="badge badge--success">● Online</span>
-                                    {% else %}
-                                    <span class="badge badge--danger">○ Offline</span>
-                                    {% endif %}
+                                    <span class="status {{ 'status--online' if c.is_online else 'status--offline' }}">
+                                        <span class="status__dot"></span>
+                                        {{ 'Online' if c.is_online else 'Offline' }}
+                                    </span>
                                 </td>
-                                <td style="color:var(--text-muted); font-family:var(--font-mono); font-size:.8rem;">
-                                    {{ c.ip_address or '—' }}
-                                </td>
-                                <td style="color:var(--text-muted); font-size:.8rem;">
-                                    {{ c.active_presentation or '—' }}
-                                </td>
-                                <td style="color:var(--text-muted); font-size:.8rem;">
-                                    {% if c.last_seen %}{{ c.last_seen.strftime('%d %b %H:%M') }}{% else %}Never{% endif %}
-                                </td>
+                                <td style="font-family:'SF Mono',monospace; font-size:var(--text-xs);">{{ c.ip_address or '—' }}</td>
+                                <td>{{ c.active_presentation or '—' }}</td>
+                                <td style="white-space:nowrap;">{% if c.last_seen %}{{ c.last_seen.strftime('%d %b %H:%M') }}{% else %}Never{% endif %}</td>
                             </tr>
                             {% endfor %}
                             </tbody>
                         </table>
-                        {% else %}
-                        <div style="text-align:center; padding:32px;">
-                            <div style="font-size:2rem; margin-bottom:8px;">🖥️</div>
-                            <p style="color:var(--text-muted);">No clients connected yet.</p>
-                            <p style="color:var(--text-muted); font-size:.85rem; margin-top:4px;">
-                                Deploy a client using:<br>
-                                <code style="background:var(--surface-alt); padding:4px 8px; border-radius:4px; margin-top:4px; display:inline-block;">
-                                    curl -fsSL https://raw.githubusercontent.com/DonICTStaff/Bulletin/main/deploy-client.sh | sudo bash
-                                </code>
-                            </p>
-                        </div>
-                        {% endif %}
                     </div>
-                </div>
-            </div>
+                    {% else %}
+                    <div class="card">
+                        <div class="card__body">
+                            <div class="empty">
+                                <div class="empty__title">No clients connected</div>
+                                <div class="empty__text">Deploy a kiosk client to get started:</div>
+                                <code class="code">curl -fsSL https://raw.githubusercontent.com/DonICTStaff/Bulletin/main/deploy-client.sh | sudo bash</code>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </section>
+            </main>
         </div>
     </div>
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            document.getElementById('theme-icon').textContent = isDark ? '🌙' : '☀️';
+            localStorage.setItem('theme', isDark ? 'light' : 'dark');
+        }
+        // Restore saved preference
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            const icon = document.getElementById('theme-icon');
+            if (icon) icon.textContent = '☀️';
+        }
+    </script>
 </body>
 </html>

@@ -1,87 +1,90 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <title>Users — Bulletin Board</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+    <a href="#main" class="skip-link">Skip to main content</a>
+
     <div class="shell">
-        <!-- Sidebar -->
-        <nav class="sidebar">
+        <nav class="sidebar" role="navigation" aria-label="Main navigation">
             <div class="sidebar__brand">
                 <img src="{{ url_for('static', filename='donlogo.jpg') }}" alt="Don College">
                 <div>
-                    <div class="sidebar__brand-text">Bulletin</div>
+                    <div class="sidebar__brand-name">Bulletin</div>
                     <div class="sidebar__brand-sub">Digital Signage</div>
                 </div>
             </div>
-
             <div class="sidebar__nav">
                 <div class="sidebar__section">Main</div>
                 <a href="/dashboard" class="sidebar__link">
-                    <span class="sidebar__link-icon">📊</span> Dashboard
+                    <span class="sidebar__link-icon" aria-hidden="true">📊</span> Dashboard
                 </a>
                 {% if current_user.is_admin() %}
                 <div class="sidebar__section">Administration</div>
                 <a href="/fleet" class="sidebar__link">
-                    <span class="sidebar__link-icon">🖥</span> Fleet Management
+                    <span class="sidebar__link-icon" aria-hidden="true">🖥</span> Fleet Management
                 </a>
-                <a href="/users" class="sidebar__link active">
-                    <span class="sidebar__link-icon">👥</span> Users
+                <a href="/users" class="sidebar__link active" aria-current="page">
+                    <span class="sidebar__link-icon" aria-hidden="true">👥</span> Users
                 </a>
                 {% endif %}
                 <div class="sidebar__section">Info</div>
                 <a href="/changelog" class="sidebar__link">
-                    <span class="sidebar__link-icon">📋</span> Changelog
+                    <span class="sidebar__link-icon" aria-hidden="true">📋</span> Changelog
                 </a>
             </div>
-
             <div class="sidebar__footer">
-                <div class="sidebar__user">{{ current_user.username }}
-                    <span class="badge badge--muted" style="font-size:.65rem; margin-left:4px;">{{ current_user.role }}</span>
+                <div>
+                    <div class="sidebar__user">{{ current_user.username }}</div>
+                    <div class="sidebar__user-role">{{ current_user.role }}</div>
                 </div>
-                <a href="/logout" style="color:#94a3b8; font-size:.8rem;">Sign out</a>
+                <div style="display:flex;gap:var(--space-2);align-items:center;">
+                    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
+                        <span id="theme-icon">🌙</span>
+                    </button>
+                    <a href="/logout" class="btn btn--sm btn--secondary">Sign out</a>
+                </div>
             </div>
         </nav>
 
-        <!-- Main content -->
         <div class="main">
-            <header class="header">
-                <div class="header__title">User Management</div>
+            <header class="topbar">
+                <h1 class="topbar__title">User Management</h1>
             </header>
 
-            <div class="content">
-                <!-- Flash Messages -->
+            <main class="content" id="main">
                 {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
                 {% for category, message in messages %}
-                <div class="alert alert--{{ 'error' if category == 'error' else 'success' }}">
-                    <span>{{ '⚠' if category == 'error' else '✓' }}</span> {{ message }}
+                <div class="alert alert--{{ 'error' if category == 'error' else 'success' }}" role="alert">
+                    <span aria-hidden="true">{{ '⚠' if category == 'error' else '✓' }}</span> {{ message }}
                 </div>
                 {% endfor %}
                 {% endif %}
                 {% endwith %}
 
-                <div style="display:grid; grid-template-columns: 320px 1fr; gap:24px;">
-                    <!-- Create User Form -->
-                    <div class="card">
+                <div class="grid-form">
+                    <!-- Create User -->
+                    <section class="card" aria-labelledby="create-heading">
                         <div class="card__header">
-                            <div class="card__title">Create User</div>
+                            <h2 class="card__title" id="create-heading">Create User</h2>
                         </div>
                         <div class="card__body">
-                            <form method="post" action="/users/create">
+                            <form method="post" action="/users/create" novalidate>
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <div class="form-group">
                                     <label class="form-label" for="username">Username</label>
                                     <input class="form-input" type="text" id="username" name="username"
-                                           placeholder="e.g. jsmith" required>
+                                           placeholder="e.g. jsmith" autocomplete="username" required>
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label" for="password">Password</label>
                                     <input class="form-input" type="password" id="password" name="password"
-                                           placeholder="Enter a password" required>
+                                           placeholder="Enter a password" autocomplete="new-password" required>
                                 </div>
                                 <div class="form-group">
                                     <label class="form-label" for="role">Role</label>
@@ -89,30 +92,28 @@
                                         <option value="operator">Operator</option>
                                         <option value="admin">Administrator</option>
                                     </select>
-                                    <div style="font-size:.8rem; color:var(--text-muted); margin-top:6px;">
-                                        Operators can upload presentations. Administrators have full access.
-                                    </div>
+                                    <p class="form-hint">Operators can upload presentations. Administrators have full access.</p>
                                 </div>
                                 <button class="btn btn--primary" type="submit" style="width:100%;">Create User</button>
                             </form>
                         </div>
-                    </div>
+                    </section>
 
                     <!-- User List -->
-                    <div class="card">
+                    <section class="card" aria-labelledby="users-heading">
                         <div class="card__header">
-                            <div class="card__title">Existing Users</div>
-                            <span class="badge badge--muted">{{ users|length }}</span>
+                            <h2 class="card__title" id="users-heading">Existing Users</h2>
+                            <span style="font-size:var(--text-xs); color:var(--text-muted);">{{ users|length }} users</span>
                         </div>
-                        <div class="card__body" style="padding:0;">
-                            <div class="table-wrap">
+                        <div class="card__body--compact" style="padding:0;">
+                            <div class="table-wrap" style="border:none;">
                                 <table>
                                     <thead>
                                         <tr>
                                             <th>Username</th>
                                             <th>Role</th>
                                             <th>Created</th>
-                                            <th></th>
+                                            <th style="text-align:right"></th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -121,19 +122,17 @@
                                         <td>
                                             <strong>{{ u.username }}</strong>
                                             {% if u.id == current_user.id %}
-                                            <span class="badge badge--primary" style="margin-left:6px;">You</span>
+                                            <span class="code" style="margin-left:var(--space-2); font-size:var(--text-xs);">You</span>
                                             {% endif %}
                                         </td>
                                         <td>
                                             {% if u.is_admin() %}
-                                            <span class="badge badge--primary">Administrator</span>
+                                            <span class="status status--live" style="background:var(--accent-bg); color:var(--accent-text);"><span class="status__dot" style="background:var(--accent);"></span> Administrator</span>
                                             {% else %}
-                                            <span class="badge badge--muted">Operator</span>
+                                            <span class="status status--offline">Operator</span>
                                             {% endif %}
                                         </td>
-                                        <td style="color:var(--text-muted); font-size:.85rem;">
-                                            {{ u.created_at.strftime('%d %b %Y') }}
-                                        </td>
+                                        <td style="white-space:nowrap;">{{ u.created_at.strftime('%d %b %Y') }}</td>
                                         <td style="text-align:right;">
                                             {% if u.id != current_user.id %}
                                             <form method="post" action="/users/{{ u.id }}/delete" style="display:inline;"
@@ -149,10 +148,24 @@
                                 </table>
                             </div>
                         </div>
-                    </div>
+                    </section>
                 </div>
-            </div>
+            </main>
         </div>
     </div>
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            document.getElementById('theme-icon').textContent = isDark ? '🌙' : '☀️';
+            localStorage.setItem('theme', isDark ? 'light' : 'dark');
+        }
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            const icon = document.getElementById('theme-icon');
+            if (icon) icon.textContent = '☀️';
+        }
+    </script>
 </body>
 </html>
