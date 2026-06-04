@@ -10,6 +10,17 @@
 
 set -euo pipefail
 
+# When run via "curl | bash", stdin is the script pipe, not the terminal.
+# All interactive prompts must read from /dev/tty explicitly.
+TTY="/dev/tty"
+
+# Verify we can read from the terminal for interactive prompts
+if [[ ! -t 0 ]] && [[ ! -e /dev/tty ]]; then
+    echo "ERROR: No terminal available for interactive input."
+    echo "Run this script directly (not piped), or use: bash setup-server.sh"
+    exit 1
+fi
+
 REPO_OWNER="DonICTStaff"
 REPO_NAME="Bulletin"
 BRANCH="main"
@@ -91,7 +102,7 @@ echo ""
 # Admin password
 while true; do
     printf "  ${BOLD}▸${NC} ${CYAN}Admin password${NC} for the web dashboard: "
-    read -r ADMIN_PASS
+    read -r ADMIN_PASS < "$TTY"
     ADMIN_PASS="${ADMIN_PASS:-}"
     if [[ -n "$ADMIN_PASS" ]]; then
         break
@@ -101,12 +112,12 @@ done
 
 # Server hostname
 printf "  ${BOLD}▸${NC} ${CYAN}Server hostname${NC} [bulletin-server]: "
-read -r SERVER_HOSTNAME
+read -r SERVER_HOSTNAME < "$TTY"
 SERVER_HOSTNAME="${SERVER_HOSTNAME:-bulletin-server}"
 
 # Flask port
 printf "  ${BOLD}▸${NC} ${CYAN}Flask port${NC} [5000]: "
-read -r SERVER_PORT
+read -r SERVER_PORT < "$TTY"
 SERVER_PORT="${SERVER_PORT:-5000}"
 
 # ── Summary ────────────────────────────────────────────────────────────────────
@@ -121,7 +132,7 @@ echo -e "  ${DIM}└────────────────────
 echo ""
 
 printf "  Proceed with installation? ${DIM}[Y/n]${NC}: "
-read -r CONFIRM
+read -r CONFIRM < "$TTY"
 CONFIRM="${CONFIRM:-Y}"
 if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
     echo ""

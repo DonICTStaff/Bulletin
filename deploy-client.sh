@@ -10,6 +10,17 @@
 
 set -euo pipefail
 
+# When run via "curl | bash", stdin is the script pipe, not the terminal.
+# All interactive prompts must read from /dev/tty explicitly.
+TTY="/dev/tty"
+
+# Verify we can read from the terminal for interactive prompts
+if [[ ! -t 0 ]] && [[ ! -e /dev/tty ]]; then
+    echo "ERROR: No terminal available for interactive input."
+    echo "Run this script directly (not piped), or use: bash deploy-client.sh"
+    exit 1
+fi
+
 REPO_OWNER="DonICTStaff"
 REPO_NAME="Bulletin"
 BRANCH="main"
@@ -91,7 +102,7 @@ echo ""
 # Server URL
 while true; do
     printf "  ${BOLD}▸${NC} ${CYAN}Server URL${NC} (e.g. http://192.168.1.50:5000): "
-    read -r SERVER_URL
+    read -r SERVER_URL < "$TTY"
     SERVER_URL="${SERVER_URL%/}"
     if [[ -n "$SERVER_URL" ]]; then
         break
@@ -102,7 +113,7 @@ done
 # Client ID
 while true; do
     printf "  ${BOLD}▸${NC} ${CYAN}Client ID${NC} (e.g. library-north, gym-display): "
-    read -r CLIENT_ID
+    read -r CLIENT_ID < "$TTY"
     CLIENT_ID="$(echo "$CLIENT_ID" | xargs)"
     if [[ -n "$CLIENT_ID" ]]; then
         if [[ "$CLIENT_ID" =~ ^[a-zA-Z0-9_-]+$ ]]; then
@@ -117,7 +128,7 @@ done
 
 # Device name (optional)
 printf "  ${BOLD}▸${NC} ${CYAN}Device name${NC} [${CLIENT_ID}]: "
-read -r DEVICE_NAME
+read -r DEVICE_NAME < "$TTY"
 DEVICE_NAME="${DEVICE_NAME:-$CLIENT_ID}"
 DEVICE_NAME="$(echo "$DEVICE_NAME" | xargs)"
 
@@ -133,7 +144,7 @@ echo -e "  ${DIM}└────────────────────
 echo ""
 
 printf "  Proceed with installation? ${DIM}[Y/n]${NC}: "
-read -r CONFIRM
+read -r CONFIRM < "$TTY"
 CONFIRM="${CONFIRM:-Y}"
 if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
     echo ""
