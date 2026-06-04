@@ -1,23 +1,19 @@
 [Unit]
-Description=Bulletin Board Kiosk Daemon
-After=network.target graphical.target
-Wants=network.target
+Description=Bulletin Board Kiosk Client
+After=network-online.target graphical.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=pi
-Group=pi
-Environment=BULLETIN_SERVER=http://don-bulletin-library:5000
-Environment=BULLETIN_DEVICE_NAME=%H
-WorkingDirectory=/home/pi/bulletin
-ExecStart=/usr/bin/python3 /home/pi/bulletin/client_daemon.py
+User=%I
+Group=%I
+WorkingDirectory=/opt/bulletin-client
+EnvironmentFile=/opt/bulletin-client/config.env
+ExecStart=/opt/bulletin-client/venv/bin/python /opt/bulletin-client/client_daemon.py
 Restart=always
 RestartSec=10
 StandardOutput=journal
 StandardError=journal
-
-# Allow sudo reboot without password (configured separately in sudoers)
-# The daemon runs as 'pi' user
 
 [Install]
 WantedBy=graphical.target

@@ -18,27 +18,62 @@
         function updateClientRow(data) {
             const row = document.getElementById('client-' + data.client_id);
             if (row) {
-                row.querySelector('.status').textContent = data.is_online ? 'Online' : 'Offline';
-                row.querySelector('.status').style.color = data.is_online ? 'green' : 'red';
-                row.querySelector('.cpu-temp').textContent = data.cpu_temp ? data.cpu_temp.toFixed(1) + '°C' : 'N/A';
+                const statusEl = row.querySelector('.status');
+                statusEl.textContent = data.is_online ? 'Online' : 'Offline';
+                statusEl.className = 'status ' + (data.is_online ? 'online' : 'offline');
+                row.querySelector('.cpu-temp').textContent = data.cpu_temp ? data.cpu_temp.toFixed(1) + '\u00b0C' : 'N/A';
                 row.querySelector('.uptime').textContent = data.uptime ? formatUptime(data.uptime) : 'N/A';
                 row.querySelector('.active-presentation').textContent = data.active_presentation || 'None';
                 row.querySelector('.last-seen').textContent = data.last_seen || 'N/A';
+
+                // Update action buttons
+                const btnCell = row.querySelector('.actions');
+                if (data.is_online) {
+                    btnCell.innerHTML = `
+                        <button onclick="sendCommand(${data.client_id}, 'reload')" class="btn-reload">Reload</button>
+                        <button onclick="sendCommand(${data.client_id}, 'reboot')" class="btn-reboot">Reboot</button>
+                    `;
+                } else {
+                    btnCell.innerHTML = '<em class="offline-text">Offline</em>';
+                }
             }
         }
 
         function formatUptime(seconds) {
-            const h = Math.floor(seconds / 3600);
+            const d = Math.floor(seconds / 86400);
+            const h = Math.floor((seconds % 86400) / 3600);
             const m = Math.floor((seconds % 3600) / 60);
+            if (d > 0) return d + 'd ' + h + 'h';
             return h + 'h ' + m + 'm';
         }
 
-        function sendCommand(socketId, command) {
-            if (confirm('Send "' + command + '" command to this device?')) {
-                socket.emit('execute_command', { socket_id: socketId, command: command });
+        async function sendCommand(dbId, command) {
+            if (!confirm('Send "' + command + '" to this device?')) return;
+            try {
+                const resp = await fetch('/api/clients/' + dbId + '/command', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ command: command })
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    alert('Command "' + command + '" sent to ' + data.client);
+                } else {
+                    alert('Error: ' + (data.error || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Failed to send command: ' + err);
             }
         }
     </script>
+    <style>
+        .online { color: #155724; font-weight: bold; }
+        .offline { color: #721c24; }
+        .btn-reload { background: #007bff; color: #fff; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; margin-right: 4px; }
+        .btn-reboot { background: #dc3545; color: #fff; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; }
+        .offline-text { color: #999; font-style: italic; }
+        .client-id-badge { background: #e9ecef; padding: 2px 8px; border-radius: 12px; font-family: monospace; font-size: 0.9em; }
+    </style>
 </head>
 <body>
     <img src="{{ url_for('static', filename='donlogo.jpg') }}">
@@ -51,7 +86,8 @@
     <div style="position: absolute; top: 15%; left: 5%; width: 90%;">
         <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%;">
             <tr style="background: #f0f0f0;">
-                <th>Device</th>
+                <th>Client ID</th>
+                <th>Display Name</th>
                 <th>IP Address</th>
                 <th>MAC Address</th>
                 <th>Status</th>
@@ -63,13 +99,20 @@
             </tr>
             {% for c in clients %}
             <tr id="client-{{ c.id }}">
+                <td>
+                    {% if c.client_id %}
+                    <span class="client-id-badge">{{ c.client_id }}</span>
+                    {% else %}
+                    <em style="color:#999;">(unregistered)</em>
+                    {% endif %}
+                </td>
                 <td>{{ c.name }}</td>
                 <td>{{ c.ip_address or 'N/A' }}</td>
                 <td>{{ c.mac_address or 'N/A' }}</td>
-                <td class="status" style="color: {{ 'green' if c.is_online else 'red' }};">
+                <td class="status {{ 'online' if c.is_online else 'offline' }}">
                     {{ 'Online' if c.is_online else 'Offline' }}
                 </td>
-                <td class="cpu-temp">{{ '%.1f°C' % c.cpu_temp if c.cpu_temp else 'N/A' }}</td>
+                <td class="cpu-temp">{{ '%.1f\u00b0C' % c.cpu_temp if c.cpu_temp else 'N/A' }}</td>
                 <td class="uptime">
                     {% if c.uptime_seconds %}
                     {{ (c.uptime_seconds // 3600) }}h {{ ((c.uptime_seconds % 3600) // 60) }}m
@@ -79,18 +122,23 @@
                 <td class="last-seen">
                     {% if c.last_seen %}{{ c.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}{% else %}Never{% endif %}
                 </td>
-                <td>
+                <td class="actions">
                     {% if c.socket_id and c.is_online %}
-                    <button onclick="sendCommand('{{ c.socket_id }}', 'reload')" style="background:#007bff;color:#fff;">Reload Presentation</button>
-                    <button onclick="sendCommand('{{ c.socket_id }}', 'reboot')" style="background:#dc3545;color:#fff;">Reboot Device</button>
+                    <button onclick="sendCommand({{ c.id }}, 'reload')" class="btn-reload">Reload</button>
+                    <button onclick="sendCommand({{ c.id }}, 'reboot')" class="btn-reboot">Reboot</button>
                     {% else %}
-                    <em>Offline</em>
+                    <em class="offline-text">Offline</em>
                     {% endif %}
                 </td>
             </tr>
             {% endfor %}
             {% if not clients %}
-            <tr><td colspan="9" style="text-align:center;">No devices registered yet. Connect a Pi client.</td></tr>
+            <tr><td colspan="10" style="text-align:center; padding: 20px;">
+                No devices registered yet. Deploy a client using:<br><br>
+                <code style="background:#f8f9fa; padding:8px 16px; border-radius:4px; display:inline-block;">
+                    curl -fsSL https://raw.githubusercontent.com/DonICTStaff/Bulletin/main/deploy-client.sh | sudo bash
+                </code>
+            </td></tr>
             {% endif %}
         </table>
     </div>

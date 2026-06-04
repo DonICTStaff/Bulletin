@@ -15,9 +15,9 @@ from datetime import datetime
 
 # ── App Configuration ────────────────────────────────────────────────────────
 app = Flask(__name__)
-app.config['SECRET_KEY'] = secrets.token_hex(32)
+app.config['SECRET_KEY'] = os.environ.get('BULLETIN_SECRET_KEY', secrets.token_hex(32))
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'uploads')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///bulletin.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('BULLETIN_DATABASE_URI', 'sqlite:///bulletin.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100 MB max upload
 
@@ -57,6 +57,7 @@ class Slideshow(db.Model):
 
 class ClientDevice(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    client_id = db.Column(db.String(64), unique=True, nullable=True)  # User-assigned friendly ID (e.g. "library-north")
     name = db.Column(db.String(128), nullable=False, default='Unnamed Device')
     ip_address = db.Column(db.String(45))
     mac_address = db.Column(db.String(17))
@@ -289,6 +290,48 @@ def api_active_presentation():
     })
 
 
+@app.route('/api/clients')
+def api_clients():
+    """Return all registered client devices."""
+    clients = ClientDevice.query.all()
+    return jsonify({
+        'clients': [{
+            'id': c.id,
+            'client_id': c.client_id,
+            'name': c.name,
+            'ip_address': c.ip_address,
+            'mac_address': c.mac_address,
+            'is_online': c.is_online,
+            'cpu_temp': c.cpu_temp,
+            'uptime_seconds': c.uptime_seconds,
+            'active_presentation': c.active_presentation,
+            'last_seen': c.last_seen.isoformat() if c.last_seen else None,
+        } for c in clients]
+    })
+
+
+@app.route('/api/clients/<int:cid>/command', methods=['POST'])
+def api_client_command(cid):
+    """Send a command to a specific client by database ID."""
+    if not current_user.is_authenticated:
+        abort(401)
+    if not current_user.is_admin():
+        abort(403)
+
+    client = ClientDevice.query.get_or_404(cid)
+    data = request.get_json(silent=True) or {}
+    command = data.get('command')
+
+    if command not in ('reboot', 'reload'):
+        return jsonify({'error': 'Invalid command'}), 400
+
+    if not client.socket_id:
+        return jsonify({'error': 'Client offline, cannot send command'}), 503
+
+    socketio.emit('command', {'command': command}, room=client.socket_id)
+    return jsonify({'status': 'sent', 'command': command, 'client': client.client_id or client.name})
+
+
 # ── Routes: User Management (Admin only) ──────────────────────────────────────
 @app.route('/users')
 @login_required
@@ -370,19 +413,30 @@ def handle_client_register(data):
     name = data.get('name', 'Unnamed Device')
     ip = request.remote_addr
     mac = data.get('mac_address', '')
+    client_id = data.get('client_id', '').strip()
 
-    client = ClientDevice.query.filter_by(mac_address=mac).first()
+    # Look up by client_id first, then by MAC
+    client = None
+    if client_id:
+        client = ClientDevice.query.filter_by(client_id=client_id).first()
+    if not client and mac:
+        client = ClientDevice.query.filter_by(mac_address=mac).first()
+
     if not client:
         client = ClientDevice(name=name, mac_address=mac)
-        db.session.add(client)
 
+    # Update fields
     client.name = name
     client.ip_address = ip
     client.socket_id = request.sid
     client.is_online = True
     client.last_seen = datetime.utcnow()
-    db.session.commit()
+    if client_id:
+        client.client_id = client_id
+    if mac:
+        client.mac_address = mac
 
+    db.session.commit()
     emit('registration_ack', {'status': 'ok', 'client_id': client.id})
 
 
@@ -420,13 +474,14 @@ def handle_execute_command(data):
         return
 
     target_sid = data.get('socket_id')
-    command = data.get('command')  # 'reboot' or 'reload'
+    command = data.get('command')
 
     if command not in ('reboot', 'reload'):
         emit('error', {'message': 'Invalid command'})
         return
 
-    emit('command', {'command': command}, room=target_sid)
+    if target_sid:
+        emit('command', {'command': command}, room=target_sid)
 
 
 # ── Changelog (kept from original) ────────────────────────────────────────────

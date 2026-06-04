@@ -85,5 +85,28 @@
         <a href="/fleet"><button>Fleet Management</button></a>
     </div>
     {% endif %}
+
+    <!-- Connected Clients Summary (visible to all authenticated users) -->
+    <div style="position: absolute; bottom: 5%; right: 5%; width: 25%;">
+        <h3>Connected Clients</h3>
+        {% if clients %}
+        <ul style="list-style: none; padding: 0; font-size: 0.9em;">
+            {% for cl in clients %}
+            <li style="padding: 4px 0;">
+                {% if cl.client_id %}
+                <span style="background:#e9ecef; padding:1px 6px; border-radius:8px; font-family:monospace; font-size:0.85em;">{{ cl.client_id }}</span>
+                {% else %}
+                <em style="color:#999;">{{ cl.name }}</em>
+                {% endif %}
+                <span style="color: {{ '#155724' if cl.is_online else '#721c24' }}; font-weight:bold;">
+                    {{ ' \u25cf' if cl.is_online else ' \u25cb' }}
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p style="font-size: 0.9em; color: #666;">No clients connected yet.</p>
+        {% endif %}
+    </div>
 </body>
 </html>
