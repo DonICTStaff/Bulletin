@@ -1,75 +1,156 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styleuploads.css') }}">
-    <title>User Management</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Users — Bulletin Board</title>
 </head>
 <body>
-    <img src="{{ url_for('static', filename='donlogo.jpg') }}">
-    <h1>User Management</h1>
+    <div class="shell">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar__brand">
+                <img src="{{ url_for('static', filename='donlogo.jpg') }}" alt="Don College">
+                <div>
+                    <div class="sidebar__brand-text">Bulletin</div>
+                    <div class="sidebar__brand-sub">Digital Signage</div>
+                </div>
+            </div>
 
-    <div style="position: absolute; top: 2%; right: 2%;">
-        <a href="/dashboard">Dashboard</a> | <a href="/logout">Logout</a>
-    </div>
+            <div class="sidebar__nav">
+                <div class="sidebar__section">Main</div>
+                <a href="/dashboard" class="sidebar__link">
+                    <span class="sidebar__link-icon">📊</span> Dashboard
+                </a>
+                {% if current_user.is_admin() %}
+                <div class="sidebar__section">Administration</div>
+                <a href="/fleet" class="sidebar__link">
+                    <span class="sidebar__link-icon">🖥</span> Fleet Management
+                </a>
+                <a href="/users" class="sidebar__link active">
+                    <span class="sidebar__link-icon">👥</span> Users
+                </a>
+                {% endif %}
+                <div class="sidebar__section">Info</div>
+                <a href="/changelog" class="sidebar__link">
+                    <span class="sidebar__link-icon">📋</span> Changelog
+                </a>
+            </div>
 
-    <!-- Flash Messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    {% for category, message in messages %}
-    <div style="padding: 10px; margin: 5px 0; border-radius: 4px;
-                {% if category == 'error' %}background: #f8d7da; color: #721c24;
-                {% else %}background: #d4edda; color: #155724;{% endif %}">
-        {{ message }}
-    </div>
-    {% endfor %}
-    {% endif %}
-    {% endwith %}
+            <div class="sidebar__footer">
+                <div class="sidebar__user">{{ current_user.username }}
+                    <span class="badge badge--muted" style="font-size:.65rem; margin-left:4px;">{{ current_user.role }}</span>
+                </div>
+                <a href="/logout" style="color:#94a3b8; font-size:.8rem;">Sign out</a>
+            </div>
+        </nav>
 
-    <!-- Create User Form -->
-    <div style="position: absolute; top: 15%; left: 10%; width: 35%;">
-        <h2>Create New User</h2>
-        <form method="post" action="/users/create">
-            <label>Username:</label><br>
-            <input type="text" name="username" required><br><br>
-            <label>Password:</label><br>
-            <input type="password" name="password" required><br><br>
-            <label>Role:</label><br>
-            <select name="role">
-                <option value="operator">Operator</option>
-                <option value="admin">Administrator</option>
-            </select><br><br>
-            <input type="submit" value="Create User">
-        </form>
-    </div>
+        <!-- Main content -->
+        <div class="main">
+            <header class="header">
+                <div class="header__title">User Management</div>
+            </header>
 
-    <!-- User List -->
-    <div style="position: absolute; top: 15%; right: 5%; width: 40%;">
-        <h2>Existing Users</h2>
-        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%;">
-            <tr style="background: #f0f0f0;">
-                <th>Username</th>
-                <th>Role</th>
-                <th>Created</th>
-                <th>Actions</th>
-            </tr>
-            {% for u in users %}
-            <tr>
-                <td>{{ u.username }}</td>
-                <td>{{ u.role }}</td>
-                <td>{{ u.created_at.strftime('%Y-%m-%d') }}</td>
-                <td>
-                    {% if u.id != current_user.id %}
-                    <form method="post" action="/users/{{ u.id }}/delete" style="display:inline;"
-                          onsubmit="return confirm('Delete user {{ u.username }}?');">
-                        <button type="submit" style="background:#dc3545;color:#fff;">Delete</button>
-                    </form>
-                    {% else %}
-                    <em>(you)</em>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </table>
+            <div class="content">
+                <!-- Flash Messages -->
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert--{{ 'error' if category == 'error' else 'success' }}">
+                    <span>{{ '⚠' if category == 'error' else '✓' }}</span> {{ message }}
+                </div>
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
+
+                <div style="display:grid; grid-template-columns: 320px 1fr; gap:24px;">
+                    <!-- Create User Form -->
+                    <div class="card">
+                        <div class="card__header">
+                            <div class="card__title">Create User</div>
+                        </div>
+                        <div class="card__body">
+                            <form method="post" action="/users/create">
+                                <div class="form-group">
+                                    <label class="form-label" for="username">Username</label>
+                                    <input class="form-input" type="text" id="username" name="username"
+                                           placeholder="e.g. jsmith" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="password">Password</label>
+                                    <input class="form-input" type="password" id="password" name="password"
+                                           placeholder="Enter a password" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="role">Role</label>
+                                    <select class="form-select" id="role" name="role">
+                                        <option value="operator">Operator</option>
+                                        <option value="admin">Administrator</option>
+                                    </select>
+                                    <div style="font-size:.8rem; color:var(--text-muted); margin-top:6px;">
+                                        Operators can upload presentations. Administrators have full access.
+                                    </div>
+                                </div>
+                                <button class="btn btn--primary" type="submit" style="width:100%;">Create User</button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- User List -->
+                    <div class="card">
+                        <div class="card__header">
+                            <div class="card__title">Existing Users</div>
+                            <span class="badge badge--muted">{{ users|length }}</span>
+                        </div>
+                        <div class="card__body" style="padding:0;">
+                            <div class="table-wrap">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Username</th>
+                                            <th>Role</th>
+                                            <th>Created</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                    {% for u in users %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ u.username }}</strong>
+                                            {% if u.id == current_user.id %}
+                                            <span class="badge badge--primary" style="margin-left:6px;">You</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if u.is_admin() %}
+                                            <span class="badge badge--primary">Administrator</span>
+                                            {% else %}
+                                            <span class="badge badge--muted">Operator</span>
+                                            {% endif %}
+                                        </td>
+                                        <td style="color:var(--text-muted); font-size:.85rem;">
+                                            {{ u.created_at.strftime('%d %b %Y') }}
+                                        </td>
+                                        <td style="text-align:right;">
+                                            {% if u.id != current_user.id %}
+                                            <form method="post" action="/users/{{ u.id }}/delete" style="display:inline;"
+                                                  onsubmit="return confirm('Delete user &quot;{{ u.username }}&quot;?');">
+                                                <button class="btn btn--sm btn--danger" type="submit">Delete</button>
+                                            </form>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </body>
 </html>

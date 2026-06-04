@@ -1,8 +1,10 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <link rel="stylesheet" href="{{ url_for('static', filename='styleuploads.css') }}">
-    <title>Fleet Management</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Fleet Management — Bulletin Board</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
     <script>
         const socket = io();
@@ -17,25 +19,30 @@
 
         function updateClientRow(data) {
             const row = document.getElementById('client-' + data.client_id);
-            if (row) {
-                const statusEl = row.querySelector('.status');
-                statusEl.textContent = data.is_online ? 'Online' : 'Offline';
-                statusEl.className = 'status ' + (data.is_online ? 'online' : 'offline');
-                row.querySelector('.cpu-temp').textContent = data.cpu_temp ? data.cpu_temp.toFixed(1) + '\u00b0C' : 'N/A';
-                row.querySelector('.uptime').textContent = data.uptime ? formatUptime(data.uptime) : 'N/A';
-                row.querySelector('.active-presentation').textContent = data.active_presentation || 'None';
-                row.querySelector('.last-seen').textContent = data.last_seen || 'N/A';
+            if (!row) return;
 
-                // Update action buttons
-                const btnCell = row.querySelector('.actions');
-                if (data.is_online) {
-                    btnCell.innerHTML = `
-                        <button onclick="sendCommand(${data.client_id}, 'reload')" class="btn-reload">Reload</button>
-                        <button onclick="sendCommand(${data.client_id}, 'reboot')" class="btn-reboot">Reboot</button>
-                    `;
-                } else {
-                    btnCell.innerHTML = '<em class="offline-text">Offline</em>';
-                }
+            const statusEl = row.querySelector('.status-badge');
+            if (data.is_online) {
+                statusEl.className = 'badge badge--success status-badge';
+                statusEl.textContent = '● Online';
+            } else {
+                statusEl.className = 'badge badge--danger status-badge';
+                statusEl.textContent = '○ Offline';
+            }
+
+            row.querySelector('.cpu-temp').textContent = data.cpu_temp ? data.cpu_temp.toFixed(1) + ' °C' : '—';
+            row.querySelector('.uptime').textContent = data.uptime ? formatUptime(data.uptime) : '—';
+            row.querySelector('.active-presentation').textContent = data.active_presentation || '—';
+            row.querySelector('.last-seen').textContent = data.last_seen || '—';
+
+            const btnCell = row.querySelector('.actions');
+            if (data.is_online) {
+                btnCell.innerHTML = `
+                    <button onclick="sendCommand(${data.client_id}, 'reload')" class="btn btn--sm btn--ghost">Reload</button>
+                    <button onclick="sendCommand(${data.client_id}, 'reboot')" class="btn btn--sm btn--danger">Reboot</button>
+                `;
+            } else {
+                btnCell.innerHTML = '<span style="color:var(--text-muted); font-size:.8rem;">Offline</span>';
             }
         }
 
@@ -66,81 +73,144 @@
             }
         }
     </script>
-    <style>
-        .online { color: #155724; font-weight: bold; }
-        .offline { color: #721c24; }
-        .btn-reload { background: #007bff; color: #fff; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; margin-right: 4px; }
-        .btn-reboot { background: #dc3545; color: #fff; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; }
-        .offline-text { color: #999; font-style: italic; }
-        .client-id-badge { background: #e9ecef; padding: 2px 8px; border-radius: 12px; font-family: monospace; font-size: 0.9em; }
-    </style>
 </head>
 <body>
-    <img src="{{ url_for('static', filename='donlogo.jpg') }}">
-    <h1>Fleet Management</h1>
+    <div class="shell">
+        <!-- Sidebar -->
+        <nav class="sidebar">
+            <div class="sidebar__brand">
+                <img src="{{ url_for('static', filename='donlogo.jpg') }}" alt="Don College">
+                <div>
+                    <div class="sidebar__brand-text">Bulletin</div>
+                    <div class="sidebar__brand-sub">Digital Signage</div>
+                </div>
+            </div>
 
-    <div style="position: absolute; top: 2%; right: 2%;">
-        <a href="/dashboard">Dashboard</a> | <a href="/logout">Logout</a>
-    </div>
+            <div class="sidebar__nav">
+                <div class="sidebar__section">Main</div>
+                <a href="/dashboard" class="sidebar__link">
+                    <span class="sidebar__link-icon">📊</span> Dashboard
+                </a>
+                {% if current_user.is_admin() %}
+                <div class="sidebar__section">Administration</div>
+                <a href="/fleet" class="sidebar__link active">
+                    <span class="sidebar__link-icon">🖥</span> Fleet Management
+                </a>
+                <a href="/users" class="sidebar__link">
+                    <span class="sidebar__link-icon">👥</span> Users
+                </a>
+                {% endif %}
+                <div class="sidebar__section">Info</div>
+                <a href="/changelog" class="sidebar__link">
+                    <span class="sidebar__link-icon">📋</span> Changelog
+                </a>
+            </div>
 
-    <div style="position: absolute; top: 15%; left: 5%; width: 90%;">
-        <table border="1" cellpadding="8" cellspacing="0" style="border-collapse: collapse; width: 100%;">
-            <tr style="background: #f0f0f0;">
-                <th>Client ID</th>
-                <th>Display Name</th>
-                <th>IP Address</th>
-                <th>MAC Address</th>
-                <th>Status</th>
-                <th>CPU Temp</th>
-                <th>Uptime</th>
-                <th>Active Presentation</th>
-                <th>Last Seen</th>
-                <th>Actions</th>
-            </tr>
-            {% for c in clients %}
-            <tr id="client-{{ c.id }}">
-                <td>
-                    {% if c.client_id %}
-                    <span class="client-id-badge">{{ c.client_id }}</span>
-                    {% else %}
-                    <em style="color:#999;">(unregistered)</em>
-                    {% endif %}
-                </td>
-                <td>{{ c.name }}</td>
-                <td>{{ c.ip_address or 'N/A' }}</td>
-                <td>{{ c.mac_address or 'N/A' }}</td>
-                <td class="status {{ 'online' if c.is_online else 'offline' }}">
-                    {{ 'Online' if c.is_online else 'Offline' }}
-                </td>
-                <td class="cpu-temp">{{ '%.1f\u00b0C' % c.cpu_temp if c.cpu_temp else 'N/A' }}</td>
-                <td class="uptime">
-                    {% if c.uptime_seconds %}
-                    {{ (c.uptime_seconds // 3600) }}h {{ ((c.uptime_seconds % 3600) // 60) }}m
-                    {% else %}N/A{% endif %}
-                </td>
-                <td class="active-presentation">{{ c.active_presentation or 'None' }}</td>
-                <td class="last-seen">
-                    {% if c.last_seen %}{{ c.last_seen.strftime('%Y-%m-%d %H:%M:%S') }}{% else %}Never{% endif %}
-                </td>
-                <td class="actions">
-                    {% if c.socket_id and c.is_online %}
-                    <button onclick="sendCommand({{ c.id }}, 'reload')" class="btn-reload">Reload</button>
-                    <button onclick="sendCommand({{ c.id }}, 'reboot')" class="btn-reboot">Reboot</button>
-                    {% else %}
-                    <em class="offline-text">Offline</em>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-            {% if not clients %}
-            <tr><td colspan="10" style="text-align:center; padding: 20px;">
-                No devices registered yet. Deploy a client using:<br><br>
-                <code style="background:#f8f9fa; padding:8px 16px; border-radius:4px; display:inline-block;">
-                    curl -fsSL https://raw.githubusercontent.com/DonICTStaff/Bulletin/main/deploy-client.sh | sudo bash
-                </code>
-            </td></tr>
-            {% endif %}
-        </table>
+            <div class="sidebar__footer">
+                <div class="sidebar__user">{{ current_user.username }}
+                    <span class="badge badge--muted" style="font-size:.65rem; margin-left:4px;">{{ current_user.role }}</span>
+                </div>
+                <a href="/logout" style="color:#94a3b8; font-size:.8rem;">Sign out</a>
+            </div>
+        </nav>
+
+        <!-- Main content -->
+        <div class="main">
+            <header class="header">
+                <div class="header__title">Fleet Management</div>
+                <div class="header__actions">
+                    {% set online_count = clients|selectattr('is_online')|list|length %}
+                    <span class="badge badge--{{ 'success' if online_count > 0 else 'muted' }}">
+                        {{ online_count }} / {{ clients|length }} online
+                    </span>
+                </div>
+            </header>
+
+            <div class="content">
+                {% if clients %}
+                <div class="card">
+                    <div class="card__body" style="padding:0;">
+                        <div class="table-wrap">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Client ID</th>
+                                        <th>Name</th>
+                                        <th>Status</th>
+                                        <th>IP Address</th>
+                                        <th>CPU Temp</th>
+                                        <th>Uptime</th>
+                                        <th>Presentation</th>
+                                        <th>Last Seen</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                {% for c in clients %}
+                                <tr id="client-{{ c.id }}">
+                                    <td>
+                                        {% if c.client_id %}
+                                        <span class="badge badge--primary">{{ c.client_id }}</span>
+                                        {% else %}
+                                        <em style="color:var(--text-muted);">—</em>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ c.name }}</td>
+                                    <td>
+                                        {% if c.is_online %}
+                                        <span class="badge badge--success status-badge">● Online</span>
+                                        {% else %}
+                                        <span class="badge badge--danger status-badge">○ Offline</span>
+                                        {% endif %}
+                                    </td>
+                                    <td style="font-family:var(--font-mono); font-size:.8rem; color:var(--text-muted);">
+                                        {{ c.ip_address or '—' }}
+                                    </td>
+                                    <td class="cpu-temp" style="font-size:.85rem;">
+                                        {% if c.cpu_temp %}{{ '%.1f °C' % c.cpu_temp }}{% else %}—{% endif %}
+                                    </td>
+                                    <td class="uptime" style="font-size:.85rem;">
+                                        {% if c.uptime_seconds %}
+                                        {{ (c.uptime_seconds // 3600) }}h {{ ((c.uptime_seconds % 3600) // 60) }}m
+                                        {% else %}—{% endif %}
+                                    </td>
+                                    <td class="active-presentation" style="font-size:.8rem; color:var(--text-muted);">
+                                        {{ c.active_presentation or '—' }}
+                                    </td>
+                                    <td class="last-seen" style="font-size:.8rem; color:var(--text-muted);">
+                                        {% if c.last_seen %}{{ c.last_seen.strftime('%d %b %H:%M') }}{% else %}Never{% endif %}
+                                    </td>
+                                    <td class="actions">
+                                        {% if c.socket_id and c.is_online %}
+                                        <button onclick="sendCommand({{ c.id }}, 'reload')" class="btn btn--sm btn--ghost">Reload</button>
+                                        <button onclick="sendCommand({{ c.id }}, 'reboot')" class="btn btn--sm btn--danger">Reboot</button>
+                                        {% else %}
+                                        <span style="color:var(--text-muted); font-size:.8rem;">Offline</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="card">
+                    <div class="card__body" style="text-align:center; padding:48px;">
+                        <div style="font-size:3rem; margin-bottom:16px;">🖥️</div>
+                        <h3 style="margin-bottom:8px;">No devices registered yet</h3>
+                        <p style="color:var(--text-muted); margin-bottom:24px;">
+                            Deploy a kiosk client to get started.
+                        </p>
+                        <code style="background:var(--surface-alt); padding:12px 20px; border-radius:var(--radius); display:inline-block; font-size:.85rem;">
+                            curl -fsSL https://raw.githubusercontent.com/DonICTStaff/Bulletin/main/deploy-client.sh | sudo bash
+                        </code>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
     </div>
 </body>
 </html>

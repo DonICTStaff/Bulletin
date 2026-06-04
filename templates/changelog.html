@@ -1,13 +1,44 @@
+<!DOCTYPE html>
 <html>
-  <head>
-    <title>Changelog</title><!--title of the page internally.-->
-    <img src="{{ url_for('static', filename='donlogo.jpg') }}"><!--location of the Don College logo.-->
-    <link rel="stylesheet" href="{{ url_for('static', filename='stylechangelog.css') }}"><!--Link to the stylesheet.-->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <!--Viewport that will display the changelog.txt data.-->
-  </head>
-  <body>
-     <h1>Changelog</h1><!--Header that displays the text "Changlog"-->
-     <h2><a href="/">Back to login</a></h2><!--Takes the user back to the login page-->
-     <div class="box">{{ content }}</div><!--Create a class with the name box to display the content of the changelog.txt-->
-    </body>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Changelog — Bulletin Board</title>
+</head>
+<body>
+    <div class="shell">
+        <nav class="sidebar">
+            <div class="sidebar__brand">
+                <img src="{{ url_for('static', filename='donlogo.jpg') }}" alt="Don College">
+                <div>
+                    <div class="sidebar__brand-text">Bulletin</div>
+                    <div class="sidebar__brand-sub">Digital Signage</div>
+                </div>
+            </div>
+            <div class="sidebar__nav">
+                <div class="sidebar__section">Info</div>
+                <a href="/changelog" class="sidebar__link active">
+                    <span class="sidebar__link-icon">📋</span> Changelog
+                </a>
+            </div>
+            <div class="sidebar__footer">
+                <a href="/" style="color:#94a3b8; font-size:.8rem;">Back to login</a>
+            </div>
+        </nav>
+
+        <div class="main">
+            <header class="header">
+                <div class="header__title">Changelog</div>
+            </header>
+            <div class="content">
+                <div class="card">
+                    <div class="card__body">
+                        <pre style="font-family:var(--font); font-size:.9rem; line-height:1.8; white-space:pre-wrap; color:var(--text);">{{ content }}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
 </html>
