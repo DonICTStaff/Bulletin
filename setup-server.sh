@@ -49,20 +49,21 @@ DB_TMP=""; CONFIG_TMP=""
 if [[ -d "${INSTALL_DIR}/.git" ]]; then
     spinner_start "Updating..."; cd "$INSTALL_DIR"
     git reset --hard HEAD 2>/dev/null||true; git clean -fdx 2>/dev/null||true
-    if git pull origin "$BRANCH" 2>/dev/null; then
+    if git pull origin "$BRANCH"; then
         spinner_stop "Updated"
     else
         warn "Pull failed, re-cloning..."
         [[ -n "$DB_TMP" ]] && cp "${INSTALL_DIR}/instance/bulletin.db" "$DB_TMP" 2>/dev/null||true
         rm -rf "$INSTALL_DIR"
-        git clone --branch "$BRANCH" "https://github.com/${REPO_OWNER}/${REPO_NAME}.git" "$INSTALL_DIR" 2>/dev/null||true
+        git clone --branch "$BRANCH" "https://github.com/${REPO_OWNER}/${REPO_NAME}.git" "$INSTALL_DIR" || error "git clone failed — check network and repo access"
         spinner_stop "Cloned fresh"
     fi
 else
     spinner_start "Cloning..."; [[ -d "$INSTALL_DIR" ]] && rm -rf "$INSTALL_DIR"
-    git clone --branch "$BRANCH" "https://github.com/${REPO_OWNER}/${REPO_NAME}.git" "$INSTALL_DIR" 2>/dev/null||true
+    git clone --branch "$BRANCH" "https://github.com/${REPO_OWNER}/${REPO_NAME}.git" "$INSTALL_DIR" || error "git clone failed — check network and repo access"
     spinner_stop "Cloned"
 fi
+[[ ! -f "${INSTALL_DIR}/requirements.txt" ]] && error "Source code missing — clone may have failed silently"
 
 [[ -n "$DB_TMP" && -f "$DB_TMP" ]] && { mkdir -p "${INSTALL_DIR}/instance"; cp "$DB_TMP" "${INSTALL_DIR}/instance/bulletin.db"; rm -f "$DB_TMP"; info "Restored database"; }
 [[ -n "$CONFIG_TMP" && -f "$CONFIG_TMP" ]] && { cp "$CONFIG_TMP" "${INSTALL_DIR}/config.env"; rm -f "$CONFIG_TMP"; info "Restored config"; }
