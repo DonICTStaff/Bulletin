@@ -105,6 +105,16 @@
             </header>
 
             <main class="content" id="main">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert--{{ 'error' if category == 'error' else 'success' }}" role="alert">
+                    <span aria-hidden="true">{{ '⚠' if category == 'error' else '✓' }}</span> {{ message }}
+                </div>
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
+
                 {% if clients %}
                 <div class="table-wrap">
                     <table role="grid">
@@ -146,6 +156,11 @@
                                 {% else %}
                                 <span style="color:var(--text-muted); font-size:var(--text-xs);">Offline</span>
                                 {% endif %}
+                                <form method="post" action="/fleet/{{ c.id }}/delete" style="display:inline;"
+                                      onsubmit="return confirm('Remove device &quot;{{ c.client_id or c.name }}&quot; from the fleet?{% if c.is_online %} It is currently online — it may re-register automatically.{% endif %}');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <button class="btn btn--sm btn--danger" type="submit" title="Remove device">Remove</button>
+                                </form>
                             </td>
                         </tr>
                         {% endfor %}

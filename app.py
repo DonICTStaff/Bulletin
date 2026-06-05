@@ -598,6 +598,23 @@ def fleet_management():
     return render_template('fleet.html', clients=clients)
 
 
+@app.route('/fleet/<int:cid>/delete', methods=['POST'])
+@login_required
+@admin_required
+def delete_client(cid):
+    client = ClientDevice.query.get_or_404(cid)
+    # Remove from Pi client SID set if connected
+    if client.socket_id:
+        PI_CLIENT_SIDS.discard(client.socket_id)
+    name = client.client_id or client.name
+    # Remove from any slideshow assignments (many-to-many)
+    client.assigned_slideshows = []
+    db.session.delete(client)
+    db.session.commit()
+    flash(f'Device "{name}" removed from fleet.', 'success')
+    return redirect(url_for('fleet_management'))
+
+
 # ── WebSocket Events ──────────────────────────────────────────────────────────
 # Track which WebSocket SIDs belong to registered Pi clients
 # (versus dashboard browsers). This prevents broadcasting presentation
