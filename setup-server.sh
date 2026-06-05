@@ -86,8 +86,9 @@ fi
 # ── Step 4 ────────────────────────────────────────────────────────────────────
 step 4 $TOTAL_STEPS "Initializing database"
 spinner_start "Creating admin user..."
-KEYTMP=$(mktemp); python3 -c "import secrets; print(secrets.token_hex(32))" > $KEYTMP 2>/dev/null; SECRET_KEY=$(cat $KEYTMP); rm -f $KEYTMP
-export BULLETIN_SECRET_KEY=$(python3 BULLETIN_ADMIN_PASSWORD=*** "${VENV_DIR}/bin/python" -c "
+SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))" 2>/dev/null)
+INIT_SCRIPT=$(mktemp)
+cat > "$INIT_SCRIPT" << 'PYEOF'
 import os
 from app import app, init_db, db, User
 with app.app_context():
@@ -101,19 +102,25 @@ with app.app_context():
         print('OK: admin user ready')
     else:
         print('ERROR: admin user not found after init')
-" 2>&1
+PYEOF
+export BULLETIN_SECRET_KEY="$SECRET_KEY"
+export BULLETIN_ADMIN_PASSWORD="$ADMIN_PASS"
+cd "$INSTALL_DIR"
+DB_INIT_OUT=$("${VENV_DIR}/bin/python" "$INIT_SCRIPT" 2>&1) || error "Database init failed: $DB_INIT_OUT"
+rm -f "$INIT_SCRIPT"
 unset BULLETIN_ADMIN_PASSWORD
+info "$DB_INIT_OUT"
 spinner_stop "Database ready"
 
 # ── Step 5 ────────────────────────────────────────────────────────────────────
 step 5 $TOTAL_STEPS "Writing configuration"
 if [[ ! -f "${INSTALL_DIR}/config.env" ]]; then
-    echo "BULLETIN_SECRET_KEY=${SECR...>" "${INSTALL_DIR}/config.env"
+    printf 'BULLETIN_SECRET_KEY=%s\n' "$SECRET_KEY" > "${INSTALL_DIR}/config.env"
     chmod 600 "${INSTALL_DIR}/config.env"
 fi
 mkdir -p "${INSTALL_DIR}/uploads"
 chown www-data:www-data "${INSTALL_DIR}/uploads"
-success "Config saved"
+info "Config saved"
 
 # ── Step 6 ────────────────────────────────────────────────────────────────────
 step 6 $TOTAL_STEPS "Creating systemd service"
@@ -140,7 +147,7 @@ StandardError=journal
 WantedBy=multi-user.target
 SVCEOF
 chown -R www-data:www-data "${INSTALL_DIR}/uploads" "${INSTALL_DIR}/instance" 2>/dev/null||true
-success "Service created"
+info "Service created"
 
 # ── Step 7 ────────────────────────────────────────────────────────────────────
 step 7 $TOTAL_STEPS "Configuring Nginx"
