@@ -165,6 +165,9 @@ step 2 $TOTAL_STEPS "Fetching source code"
 if [[ -d "$INSTALL_DIR" ]]; then
     spinner_start "Updating existing installation..."
     cd "$INSTALL_DIR"
+    # Discard local changes (pyc cache, db file, etc.) so git pull succeeds
+    git reset --hard HEAD 2>/dev/null
+    git clean -fdx 2>/dev/null
     git pull origin "$BRANCH" 2>&1
     PULL_STATUS=$?
     if [[ $PULL_STATUS -ne 0 ]]; then
