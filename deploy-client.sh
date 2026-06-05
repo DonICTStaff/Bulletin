@@ -14,6 +14,12 @@ set -euo pipefail
 # All interactive prompts must read from /dev/tty explicitly.
 TTY="/dev/tty"
 
+# Quick update mode: skip config, just pull latest daemon and restart
+UPDATE_ONLY=false
+if [[ "${1:-}" == "--update" ]]; then
+    UPDATE_ONLY=true
+fi
+
 # Verify we can read from the terminal for interactive prompts
 if [[ ! -t 0 ]] && [[ ! -e /dev/tty ]]; then
     echo "ERROR: No terminal available for interactive input."
@@ -73,6 +79,34 @@ success() { printf "  ${GREEN}✓${NC}  %s\\n" "$*"; }
 warn()    { printf "  ${YELLOW}⚠${NC}  %s\\n" "$*"; }
 error()   { printf "\\n  ${RED}✗  ERROR:${NC} %s\\n\\n" "$*"; exit 1; }
 step()    { printf "\\n${BOLD}  [%d/%d]${NC} %s\\n" "$1" "$2" "$3"; }
+
+# ── Quick Update Mode ─────────────────────────────────────────────────────────
+if [[ "$UPDATE_ONLY" == true ]]; then
+    if [[ $EUID -ne 0 ]]; then
+        echo "ERROR: --update requires root (use sudo)."; exit 1
+    fi
+    INSTALL_DIR="/opt/bulletin-client"
+    SERVICE_NAME="bulletin-client"
+    GITHUB_RAW="https://raw.githubusercontent.com/DonICTStaff/Bulletin/main"
+
+    if [[ ! -f "${INSTALL_DIR}/client_daemon.py" ]]; then
+        echo "ERROR: ${INSTALL_DIR}/client_daemon.py not found. Run full install first."; exit 1
+    fi
+
+    echo ""
+    echo -e "  ${CYAN}Updating Bulletin Board client...${NC}"
+    curl -fsSL "${GITHUB_RAW}/client_daemon.py" -o "${INSTALL_DIR}/client_daemon.py"
+    chmod +x "${INSTALL_DIR}/client_daemon.py"
+    systemctl restart "${SERVICE_NAME}" 2>/dev/null || true
+    sleep 2
+    if systemctl is-active --quiet "${SERVICE_NAME}"; then
+        echo -e "  ${GREEN}✓${NC} Updated and restarted"
+    else
+        echo -e "  ${YELLOW}⚠${NC} Updated but service may need manual start"
+    fi
+    echo ""
+    exit 0
+fi
 
 # ── Banner ─────────────────────────────────────────────────────────────────────
 clear 2>/dev/null || true
