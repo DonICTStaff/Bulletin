@@ -139,11 +139,16 @@ def clear_uploads():
 
 def run_presentation():
     upload_folder = app.config['UPLOAD_FOLDER']
+    os.makedirs(upload_folder, exist_ok=True)
     for filename in os.listdir(upload_folder):
         if filename.lower().endswith(('.ppt', '.pptx')):
             file_path = os.path.join(upload_folder, filename)
-            subprocess.call(['pkill', '-f', 'libreoffice'])
-            subprocess.Popen(['libreoffice', '--show', file_path])
+            try:
+                subprocess.call(['pkill', '-f', 'libreoffice'])
+                subprocess.Popen(['libreoffice', '--show', file_path])
+            except FileNotFoundError:
+                # LibreOffice not installed — server-only, Pi clients handle display
+                pass
             break
 
 
@@ -251,6 +256,7 @@ def upload_file():
     # Do NOT clear_uploads() here -- old files are still referenced by
     # Slideshow DB records. Individual files are deleted only via the
     # delete_slideshow route.
+    os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], stored_name)
     file.save(file_path)
 

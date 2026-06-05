@@ -113,14 +113,12 @@
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                 <div class="upload-zone" role="button" tabindex="0"
                                      onclick="document.getElementById('file-input').click()"
-                                     onkeydown="if(event.key==='Enter'||event.key===' ')document.getElementById('file-input').click()"
-                                     ondragover="event.preventDefault();this.classList.add('drag')"
-                                     ondragleave="this.classList.remove('drag')"
-                                     ondrop="event.preventDefault();this.classList.remove('drag')">
+                                     onkeydown="if(event.key==='Enter'||event.key===' ')document.getElementById('file-input').click()">
                                     <div class="upload-zone__label">Drop a .pptx file here</div>
                                     <div class="upload-zone__hint">or click to browse your computer</div>
                                     <input type="file" name="file" id="file-input" accept=".ppt,.pptx"
-                                           style="position:absolute;opacity:0;width:0;height:0" aria-label="Choose file">
+                                           style="position:absolute;inset:0;opacity:0;cursor:pointer;" aria-label="Choose file"
+                                           onchange="if(this.files.length){document.querySelector('.upload-zone__label').textContent=this.files[0].name;}">
                                 </div>
 
                                 {% if clients %}
