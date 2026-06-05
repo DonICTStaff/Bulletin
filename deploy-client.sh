@@ -51,7 +51,7 @@ spinner_start() {
     (
         while true; do
             SPINNER_INDEX=$(( (SPINNER_INDEX + 1) % 10 ))
-            printf "\r  ${CYAN}%s${NC} %s" "${SPINNER_FRAMES[$SPINNER_INDEX]}" "$msg"
+            printf "\\r  ${CYAN}%s${NC} %s" "${SPINNER_FRAMES[$SPINNER_INDEX]}" "$msg"
             sleep 0.1
         done
     ) & SPINNER_PID=$!
@@ -64,15 +64,15 @@ spinner_stop() {
         wait "$SPINNER_PID" 2>/dev/null || true
         SPINNER_PID=""
     fi
-    printf "\r  ${GREEN}✓${NC} %s\n" "$1"
+    printf "\\r  ${GREEN}✓${NC} %s\\n" "$1"
 }
 
 # ── Logging ────────────────────────────────────────────────────────────────────
-info()    { printf "  ${BLUE}ℹ${NC}  %s\n" "$*"; }
-success() { printf "  ${GREEN}✓${NC}  %s\n" "$*"; }
-warn()    { printf "  ${YELLOW}⚠${NC}  %s\n" "$*"; }
-error()   { printf "\n  ${RED}✗  ERROR:${NC} %s\n\n" "$*"; exit 1; }
-step()    { printf "\n${BOLD}  [%d/%d]${NC} %s\n" "$1" "$2" "$3"; }
+info()    { printf "  ${BLUE}ℹ${NC}  %s\\n" "$*"; }
+success() { printf "  ${GREEN}✓${NC}  %s\\n" "$*"; }
+warn()    { printf "  ${YELLOW}⚠${NC}  %s\\n" "$*"; }
+error()   { printf "\\n  ${RED}✗  ERROR:${NC} %s\\n\\n" "$*"; exit 1; }
+step()    { printf "\\n${BOLD}  [%d/%d]${NC} %s\\n" "$1" "$2" "$3"; }
 
 # ── Banner ─────────────────────────────────────────────────────────────────────
 clear 2>/dev/null || true
@@ -80,12 +80,7 @@ echo ""
 echo -e "${BOLD}${CYAN}"
 echo "  ╔══════════════════════════════════════════════════╗"
 echo "  ║                                                  ║"
-echo "  ║   ██████╗ ██╗   ██╗██╗     ██╗     ███████╗████████╗██╗███╗   ██╗    ║"
-echo "  ║   ██╔══██╗██║   ██║██║     ██║     ██╔════╝╚══██╔══╝██║████╗  ██║    ║"
-echo "  ║   ██████╔╝██║   ██║██║     ██║     █████╗     ██║   ██║██╔██╗ ██║    ║"
-echo "  ║   ██╔══██╗██║   ██║██║     ██║     ██╔══╝     ██║   ██║██║╚██╗██║    ║"
-echo "  ║   ██████╔╝╚██████╔╝███████╗███████╗███████╗   ██║   ██║██║ ╚████║    ║"
-echo "  ║   ╚═════╝  ╚═════╝ ╚══════╝╚══════╝╚══════╝   ╚═╝   ╚═╝╚═╝  ╚═══╝    ║"
+echo "  ║   $(uv run python -m pyfiglet -f slant Bulletin | sed 's/^/      /')   ║"
 echo "  ║                                                  ║"
 echo "  ║          ${NC}${BOLD}Kiosk Client Installer${CYAN}                    ║"
 echo "  ╚══════════════════════════════════════════════════╝"
@@ -221,7 +216,7 @@ step 5 $TOTAL_STEPS "Registering with server"
 spinner_start "Requesting API key from server..."
 API_KEY=$(curl -fsSL -X POST "${SERVER_URL}/api/register" \
     -H "Content-Type: application/json" \
-    -d "{\"client_id\":\"${CLIENT_ID}\",\"name\":\"${DEVICE_NAME}\"}" \
+    -d "{\\"client_id\\":\\"${CLIENT_ID}\\",\\"name\\":\\"${DEVICE_NAME}\\\"}" \
     2>/dev/null | python3 -c "
 import sys, json
 try:

@@ -51,7 +51,7 @@ spinner_start() {
     (
         while true; do
             SPINNER_INDEX=$(( (SPINNER_INDEX + 1) % 10 ))
-            printf "\r  ${CYAN}%s${NC} %s" "${SPINNER_FRAMES[$SPINNER_INDEX]}" "$msg"
+            printf "\\r  ${CYAN}%s${NC} %s" "${SPINNER_FRAMES[$SPINNER_INDEX]}" "$msg"
             sleep 0.1
         done
     ) & SPINNER_PID=$!
@@ -64,15 +64,15 @@ spinner_stop() {
         wait "$SPINNER_PID" 2>/dev/null || true
         SPINNER_PID=""
     fi
-    printf "\r  ${GREEN}✓${NC}  %s\n" "$1"
+    printf "\\r  ${GREEN}✓${NC} %s\\n" "$1"
 }
 
 # ── Logging ────────────────────────────────────────────────────────────────────
-info()    { printf "  ${BLUE}ℹ${NC}  %s\n" "$*"; }
-success() { printf "  ${GREEN}✓${NC}  %s\n" "$*"; }
-warn()    { printf "  ${YELLOW}⚠${NC}  %s\n" "$*"; }
-error()   { printf "\n  ${RED}✗  ERROR:${NC} %s\n\n" "$*"; exit 1; }
-step()    { printf "\n${BOLD}  [%d/%d]${NC} %s\n" "$1" "$2" "$3"; }
+info()    { printf "  ${BLUE}ℹ${NC}  %s\\n" "$*"; }
+success() { printf "  ${GREEN}✓${NC}  %s\\n" "$*"; }
+warn()    { printf "  ${YELLOW}⚠${NC}  %s\\n" "$*"; }
+error()   { printf "\\n  ${RED}✗  ERROR:${NC} %s\\n\\n" "$*"; exit 1; }
+step()    { printf "\\n${BOLD}  [%d/%d]${NC} %s\\n" "$1" "$2" "$3"; }
 
 # ── Banner ─────────────────────────────────────────────────────────────────────
 clear 2>/dev/null || true
@@ -80,12 +80,7 @@ echo ""
 echo -e "${BOLD}${CYAN}"
 echo "  ╔══════════════════════════════════════════════════╗"
 echo "  ║                                                  ║"
-echo "  ║   ██████╗ ██╗   ██╗██╗     ██╗     ███████╗████████╗██╗███╗   ██╗    ║"
-echo "  ║   ██╔══██╗██║   ██║██║     ██║     ██╔════╝╚══██╔══╝██║████╗  ██║    ║"
-echo "  ║   ██████╔╝██║   ██║██║     ██║     █████╗     ██║   ██║██╔██╗ ██║    ║"
-echo "  ║   ██╔══██╗██║   ██║██║     ██║     ██╔══╝     ██║   ██║██║╚██╗██║    ║"
-echo "  ║   ██████╔╝╚██████╔╝███████╗███████╗███████╗   ██║   ██║██║ ╚████║    ║"
-echo "  ║   ╚═════╝  ╚═════╝ ╚══════╝╚══════╝╚══════╝   ╚═╝   ╚═╝╚═╝  ╚═══╝    ║"
+echo "  ║   $(uv run python -m pyfiglet -f slant Bulletin | sed 's/^/      /')   ║"
 echo "  ║                                                  ║"
 echo "  ║          ${NC}${BOLD}Server Installer${CYAN}                          ║"
 echo "  ╚══════════════════════════════════════════════════╝"
@@ -141,7 +136,7 @@ if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
     exit 0
 fi
 
-# ── Require root ───────────────────────────────────────────────────────────────
+# ── Require root ────────────────────……………………………………………………
 if [[ $EUID -ne 0 ]]; then
     error "This installer must be run as root (use sudo)."
 fi
@@ -277,7 +272,7 @@ server {
         proxy_pass http://127.0.0.1:${SERVER_PORT}/socket.io;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
+        proxy_set_header Connection \"upgrade\";
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;

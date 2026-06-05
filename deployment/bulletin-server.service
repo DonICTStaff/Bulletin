@@ -1,14 +1,15 @@
 [Unit]
 Description=Bulletin Board Flask Server
-After=network.target
-Wants=network.target
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
-User=bulletin
-Group=bulletin
+User=www-data
+Group=www-data
 WorkingDirectory=/opt/bulletin
-ExecStart=/opt/bulletin/venv/bin/python -m flask run --host=127.0.0.1 --port=5000
+EnvironmentFile=/opt/bulletin/config.env
+ExecStart=/opt/bulletin/venv/bin/python /opt/bulletin/app.py
 Restart=always
 RestartSec=5
 StandardOutput=journal
