@@ -47,12 +47,14 @@ DB_TMP=""; CONFIG_TMP=""
 [[ -f "${INSTALL_DIR}/config.env" ]] && { CONFIG_TMP=$(mktemp); cp "${INSTALL_DIR}/config.env" "$CONFIG_TMP"; info "Preserved config"; }
 
 if [[ -d "${INSTALL_DIR}/.git" ]]; then
+    git config --global --add safe.directory "$INSTALL_DIR"
     spinner_start "Updating..."; cd "$INSTALL_DIR"
     git reset --hard HEAD 2>/dev/null||true; git clean -fdx 2>/dev/null||true
     if git pull origin "$BRANCH"; then
         spinner_stop "Updated"
     else
         warn "Pull failed, re-cloning..."
+        cd /
         [[ -n "$DB_TMP" ]] && cp "${INSTALL_DIR}/instance/bulletin.db" "$DB_TMP" 2>/dev/null||true
         rm -rf "$INSTALL_DIR"
         git clone --branch "$BRANCH" "https://github.com/${REPO_OWNER}/${REPO_NAME}.git" "$INSTALL_DIR" || error "git clone failed — check network and repo access"
