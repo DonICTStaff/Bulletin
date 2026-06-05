@@ -292,12 +292,21 @@ def upload_file():
 
     # Broadcast ONLY to the assigned Pi clients
     assigned_sids = {c.socket_id for c in slideshow.target_clients.all() if c.socket_id and c.socket_id in PI_CLIENT_SIDS}
-    for sid in assigned_sids:
-        socketio.emit('new_presentation_available', {
+    if assigned_sids:
+        for sid in assigned_sids:
+            socketio.emit('new_presentation_available', {
+                'filename': stored_name,
+                'original_filename': filename,
+                'url': url_for('download_presentation', _external=True)
+            }, room=sid)
+    else:
+        # Fallback: no assigned clients with active SIDs — broadcast to all known Pis
+        # This covers single-client setups and cases where target_clients is empty
+        broadcast_to_clients('new_presentation_available', {
             'filename': stored_name,
             'original_filename': filename,
             'url': url_for('download_presentation', _external=True)
-        }, room=sid)
+        })
 
     target_count = slideshow.target_clients.count()
     if selected_client_ids:

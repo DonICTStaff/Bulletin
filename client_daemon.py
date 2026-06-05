@@ -184,10 +184,14 @@ def download_presentation():
         data = json.loads(req.read().decode())
 
         filename = data['filename']
-        url = data['url']
+        # Build download URL from SERVER_URL instead of trusting the
+        # server's _external URL (which is wrong behind Nginx — it
+        # returns http://127.0.0.1:5000/... unreachable from Pi)
+        download_url = f"{SERVER_URL}/api/download/presentation"
 
         dest = os.path.join(CACHE_DIR, filename)
-        urllib.request.urlretrieve(url, dest)
+        print(f"Downloading: {download_url} -> {dest}")
+        urllib.request.urlretrieve(download_url, dest)
         print(f"Downloaded: {filename} -> {dest}")
         return dest
 
@@ -252,10 +256,13 @@ def registration_ack(data):
 
 @sio.event
 def new_presentation_available(data):
-    print(f"New presentation notification: {data.get('original_filename', 'unknown')}")
+    filename = data.get('original_filename', 'unknown')
+    print(f"New presentation notification: {filename}")
     filepath = download_presentation()
     if filepath:
         launch_presentation(filepath)
+    else:
+        print(f"WARNING: Failed to download presentation '{filename}'")
 
 
 @sio.event
