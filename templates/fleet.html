@@ -6,32 +6,127 @@
     <title>Fleet Management — Bulletin Board</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=3">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        .device-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: var(--space-3);
+        }
+        .device-card {
+            position: relative;
+            background: var(--surface-raised, #fff);
+            border: 1px solid var(--border, #e0e0e0);
+            border-radius: var(--radius, 8px);
+            padding: var(--space-3);
+            transition: box-shadow 0.15s;
+        }
+        .device-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .device-card__header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: var(--space-2);
+        }
+        .device-card__name {
+            font-weight: 600;
+            font-size: var(--text-md, 1rem);
+            line-height: 1.3;
+        }
+        .device-card__id {
+            font-family: 'SF Mono', Consolas, monospace;
+            font-size: var(--text-xs, 0.75rem);
+            color: var(--text-muted);
+        }
+        .device-card__meta {
+            font-size: var(--text-xs, 0.75rem);
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+        .device-card__meta kbd {
+            font-family: inherit;
+            background: var(--surface, #f5f5f5);
+            padding: 0 4px;
+            border-radius: 3px;
+            border: 1px solid var(--border, #ddd);
+        }
+        /* 3-dot menu */
+        .dot-menu {
+            position: relative;
+        }
+        .dot-menu__btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px 6px;
+            border-radius: 4px;
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            line-height: 1;
+        }
+        .dot-menu__btn:hover { background: var(--surface, #f5f5f5); color: var(--text); }
+        .dot-menu__dropdown {
+            display: none;
+            position: absolute;
+            right: 0;
+            top: 100%;
+            z-index: 20;
+            background: var(--surface-raised, #fff);
+            border: 1px solid var(--border, #e0e0e0);
+            border-radius: var(--radius, 6px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            min-width: 160px;
+            overflow: hidden;
+        }
+        .dot-menu.open .dot-menu__dropdown { display: block; }
+        .dot-menu__item {
+            display: block;
+            width: 100%;
+            padding: var(--space-2) var(--space-3);
+            background: none;
+            border: none;
+            cursor: pointer;
+            text-align: left;
+            font-size: var(--text-sm, 0.875rem);
+            color: var(--text);
+        }
+        .dot-menu__item:hover { background: var(--surface, #f5f5f5); }
+        .dot-menu__item--danger { color: var(--danger, #dc3545); }
+        .dot-menu__item--danger:hover { background: var(--danger-bg, #fde8e8); }
+        .dot-menu__sep {
+            height: 1px;
+            background: var(--border, #e0e0e0);
+            margin: 0;
+        }
+    </style>
     <script>
         const socket = io();
         socket.on('connect', function() { console.log('WS connected'); });
-        socket.on('fleet_update', function(data) { updateRow(data); });
+        socket.on('fleet_update', function(data) { updateCard(data); });
 
-        function updateRow(data) {
-            const row = document.getElementById('client-' + data.client_id);
-            if (!row) return;
-            const dot = row.querySelector('.status__dot');
-            const status = row.querySelector('.status');
+        function updateCard(data) {
+            const card = document.getElementById('client-' + data.client_id);
+            if (!card) return;
+            const status = card.querySelector('.device-status');
             if (data.is_online) {
-                status.className = 'status status--online';
+                status.className = 'device-status status status--online';
                 status.innerHTML = '<span class="status__dot"></span> Online';
             } else {
-                status.className = 'status status--offline';
+                status.className = 'device-status status status--offline';
                 status.innerHTML = '<span class="status__dot"></span> Offline';
             }
-            row.querySelector('.cpu-temp').textContent = data.cpu_temp ? data.cpu_temp.toFixed(1) + ' °C' : '—';
-            row.querySelector('.uptime').textContent = data.uptime ? fmtUptime(data.uptime) : '—';
-            row.querySelector('.presentation').textContent = data.active_presentation || '—';
-            row.querySelector('.last-seen').textContent = data.last_seen || '—';
+            card.querySelector('.cpu-temp').textContent = data.cpu_temp ? data.cpu_temp.toFixed(1) + ' °C' : '—';
+            card.querySelector('.uptime').textContent = data.uptime ? fmtUptime(data.uptime) : '—';
+            card.querySelector('.presentation').textContent = data.active_presentation || '—';
+            card.querySelector('.last-seen').textContent = data.last_seen ? fmtTime(data.last_seen) : '—';
         }
 
         function fmtUptime(s) {
             const d=Math.floor(s/86400),h=Math.floor((s%86400)/3600),m=Math.floor((s%3600)/60);
             return d>0?d+'d '+h+'h':h+'h '+m+'m';
+        }
+
+        function fmtTime(iso) {
+            try { const d=new Date(iso); return d.toLocaleDateString('en-GB',{day:'numeric',month:'short'})+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); } catch(e) { return iso; }
         }
 
         async function sendCommand(id, cmd) {
@@ -42,12 +137,34 @@
             });
             const d = await r.json();
             alert(r.ok ? 'Command "' + cmd + '" sent to ' + d.client : 'Error: ' + (d.error || 'Unknown'));
+            closeAllMenus();
         }
+
+        function confirmRemove(form) {
+            const name = form.dataset.deviceName;
+            const online = form.dataset.online === 'true';
+            const msg = 'Remove device "' + name + '" from the fleet?' + (online ? ' It is currently online — it may re-register automatically.' : '');
+            if (confirm(msg)) form.submit();
+        }
+
+        /* 3-dot menu toggle */
+        function toggleMenu(btn) {
+            const menu = btn.closest('.dot-menu');
+            const wasOpen = menu.classList.contains('open');
+            closeAllMenus();
+            if (!wasOpen) menu.classList.add('open');
+        }
+        function closeAllMenus() {
+            document.querySelectorAll('.dot-menu.open').forEach(m => m.classList.remove('open'));
+        }
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.dot-menu')) closeAllMenus();
+        });
     </script>
 </head>
 <body>
     <a href="#main" class="skip-link">Skip to main content</a>
-    <script>window.ADMIN_TOKEN=*** config['SECRET_KEY'] }}";</script>
+    <script>window.ADMIN_TOKEN="{{ config['SECRET_KEY'] }}";</script>
 
     <div class="shell">
         <nav class="sidebar" role="navigation" aria-label="Main navigation">
@@ -116,56 +233,47 @@
                 {% endwith %}
 
                 {% if clients %}
-                <div class="table-wrap">
-                    <table role="grid">
-                        <thead>
-                            <tr>
-                                <th>Client ID</th>
-                                <th>Name</th>
-                                <th>Status</th>
-                                <th>IP Address</th>
-                                <th>CPU Temp</th>
-                                <th>Uptime</th>
-                                <th>Presentation</th>
-                                <th>Last Seen</th>
-                                <th style="text-align:right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        {% for c in clients %}
-                        <tr id="client-{{ c.id }}">
-                            <td>
-                                {% if c.client_id %}<span class="code">{{ c.client_id }}</span>
-                                {% else %}<span style="color:var(--text-muted);">—</span>{% endif %}
-                            </td>
-                            <td>{{ c.name }}</td>
-                            <td>
-                                <span class="status {{ 'status--online' if c.is_online else 'status--offline' }}">
+                <div class="device-grid">
+                {% for c in clients %}
+                    <div class="device-card" id="client-{{ c.id }}">
+                        <div class="device-card__header">
+                            <div>
+                                <div class="device-card__name">{{ c.name }}</div>
+                                {% if c.client_id %}
+                                <div class="device-card__id">{{ c.client_id }}</div>
+                                {% endif %}
+                            </div>
+                            <div style="display:flex; align-items:center; gap:var(--space-2);">
+                                <span class="device-status status {{ 'status--online' if c.is_online else 'status--offline' }}">
                                     <span class="status__dot"></span> {{ 'Online' if c.is_online else 'Offline' }}
                                 </span>
-                            </td>
-                            <td style="font-family:'SF Mono',monospace; font-size:var(--text-xs);">{{ c.ip_address or '—' }}</td>
-                            <td class="cpu-temp">{% if c.cpu_temp %}{{ '%.1f °C' % c.cpu_temp }}{% else %}—{% endif %}</td>
-                            <td class="uptime">{% if c.uptime_seconds %}{{ (c.uptime_seconds//3600) }}h {{ ((c.uptime_seconds%3600)//60) }}m{% else %}—{% endif %}</td>
-                            <td class="presentation">{{ c.active_presentation or '—' }}</td>
-                            <td class="last-seen" style="white-space:nowrap;">{% if c.last_seen %}{{ c.last_seen.strftime('%d %b %H:%M') }}{% else %}Never{% endif %}</td>
-                            <td style="text-align:right; white-space:nowrap;">
-                                {% if c.socket_id and c.is_online %}
-                                <button onclick="sendCommand({{ c.id }}, 'reload')" class="btn btn--sm btn--secondary">Reload</button>
-                                <button onclick="sendCommand({{ c.id }}, 'reboot')" class="btn btn--sm btn--danger">Reboot</button>
-                                {% else %}
-                                <span style="color:var(--text-muted); font-size:var(--text-xs);">Offline</span>
-                                {% endif %}
-                                <form method="post" action="/fleet/{{ c.id }}/delete" style="display:inline;"
-                                      onsubmit="return confirm('Remove device &quot;{{ c.client_id or c.name }}&quot; from the fleet?{% if c.is_online %} It is currently online — it may re-register automatically.{% endif %}');">
-                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                                    <button class="btn btn--sm btn--danger" type="submit" title="Remove device">Remove</button>
-                                </form>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
+                                <div class="dot-menu">
+                                    <button class="dot-menu__btn" onclick="toggleMenu(this)" aria-label="Actions" title="Actions">⋮</button>
+                                    <div class="dot-menu__dropdown" role="menu">
+                                        {% if c.socket_id and c.is_online %}
+                                        <button class="dot-menu__item" onclick="sendCommand({{ c.id }}, 'reload')" role="menuitem">🔄 Refresh display</button>
+                                        <button class="dot-menu__item" onclick="sendCommand({{ c.id }}, 'reboot')" role="menuitem">🔄 Reboot device</button>
+                                        <hr class="dot-menu__sep">
+                                        {% endif %}
+                                        <form method="post" action="/fleet/{{ c.id }}/delete"
+                                              data-device-name="{{ c.client_id or c.name }}"
+                                              data-online="{{ 'true' if c.is_online else 'false' }}"
+                                              onsubmit="event.preventDefault(); confirmRemove(this);">
+                                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                            <button class="dot-menu__item dot-menu__item--danger" type="submit" role="menuitem">🗑 Remove device</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="device-card__meta">
+                            <div>IP <kbd>{{ c.ip_address or '—' }}</kbd>{% if c.mac_address %} &middot; MAC <kbd>{{ c.mac_address }}</kbd>{% endif %}</div>
+                            <div>CPU <span class="cpu-temp">{% if c.cpu_temp %}{{ '%.1f °C' % c.cpu_temp }}{% else %}—{% endif %}</span> &middot; Uptime <span class="uptime">{% if c.uptime_seconds %}{{ (c.uptime_seconds//3600) }}h {{ ((c.uptime_seconds%3600)//60) }}m{% else %}—{% endif %}</span></div>
+                            <div>Showing <span class="presentation">{{ c.active_presentation or '—' }}</span></div>
+                            <div>Last seen <span class="last-seen">{% if c.last_seen %}{{ c.last_seen.strftime('%d %b %H:%M') }}{% else %}Never{% endif %}</span>{% if c.registered_at %} &middot; Registered {{ c.registered_at.strftime('%d %b %Y') }}{% endif %}</div>
+                        </div>
+                    </div>
+                {% endfor %}
                 </div>
                 {% else %}
                 <div class="card">
