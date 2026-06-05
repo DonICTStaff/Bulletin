@@ -165,12 +165,31 @@ step 2 $TOTAL_STEPS "Fetching source code"
 if [[ -d "$INSTALL_DIR" ]]; then
     spinner_start "Updating existing installation..."
     cd "$INSTALL_DIR"
-    git pull origin "$BRANCH" > /dev/null 2>&1 || true
+    git pull origin "$BRANCH" 2>&1
+    PULL_STATUS=$?
+    if [[ $PULL_STATUS -ne 0 ]]; then
+        warn "Git pull failed (exit $PULL_STATUS), continuing with existing files"
+    fi
     spinner_stop "Repository updated"
 else
     spinner_start "Cloning repository..."
-    git clone --branch "$BRANCH" "https://github.com/${REPO_OWNER}/${REPO_NAME}.git" "$INSTALL_DIR" > /dev/null 2>&1
+    git clone --branch "$BRANCH" "https://github.com/${REPO_OWNER}/${REPO_NAME}.git" "$INSTALL_DIR" 2>&1
+    CLONE_STATUS=$?
+    if [[ $CLONE_STATUS -ne 0 ]]; then
+        error "Git clone failed (exit $CLONE_STATUS)"
+    fi
     spinner_stop "Repository cloned to ${INSTALL_DIR}"
+fi
+
+# Ensure www-data owns all files (git pull may create root-owned files)
+chown -R www-data:www-data "${INSTALL_DIR}"
+
+# Restart the Flask service so new code takes effect
+if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
+    spinner_start "Restarting server with new code..."
+    systemctl restart "${SERVICE_NAME}" > /dev/null 2>&1
+    sleep 2
+    spinner_stop "Server restarted"
 fi
 
 # ── Step 3: Python venv ───────────────────────────────────────────────────────
