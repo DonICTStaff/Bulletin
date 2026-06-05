@@ -188,11 +188,16 @@ fi
 chown -R www-data:www-data "${INSTALL_DIR}"
 
 # Restart the Flask service so new code takes effect
+systemctl daemon-reload 2>/dev/null
 if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
     spinner_start "Restarting server with new code..."
-    systemctl restart "${SERVICE_NAME}" > /dev/null 2>&1
+    timeout 15 systemctl restart "${SERVICE_NAME}" 2>&1 || true
     sleep 2
-    spinner_stop "Server restarted"
+    if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
+        spinner_stop "Server restarted"
+    else
+        spinner_stop "Restart failed -- will retry at end"
+    fi
 fi
 
 # ── Step 3: Python venv ───────────────────────────────────────────────────────
@@ -314,9 +319,14 @@ echo ""
 spinner_start "Enabling and starting ${SERVICE_NAME}..."
 systemctl daemon-reload > /dev/null 2>&1
 systemctl enable "$SERVICE_NAME" > /dev/null 2>&1
-systemctl start "$SERVICE_NAME" > /dev/null 2>&1
-sleep 2
-spinner_stop "Service started"
+systemctl start "$SERVICE_NAME" > /dev/null 2>&1 || true
+sleep 3
+if systemctl is-active --quiet "${SERVICE_NAME}"; then
+    spinner_stop "Service started"
+else
+    spinner_stop "Service start failed"
+    warn "Check: journalctl -u ${SERVICE_NAME} -n 30"
+fi
 
 # ── Verify ─────────────────────────────────────────────────────────────────────
 echo ""
