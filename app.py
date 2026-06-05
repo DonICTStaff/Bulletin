@@ -52,6 +52,13 @@ csrf = CSRFProtect(app)
 
 
 # ── Database Models ───────────────────────────────────────────────────────────
+# Many-to-many: which clients a slideshow is assigned to
+slideshow_clients = db.Table('slideshow_clients',
+    db.Column('slideshow_id', db.Integer, db.ForeignKey('slideshow.id'), primary_key=True),
+    db.Column('clientdevice_id', db.Integer, db.ForeignKey('client_device.id'), primary_key=True)
+)
+
+
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -75,6 +82,9 @@ class Slideshow(db.Model):
     is_active = db.Column(db.Boolean, default=False)
 
     uploader = db.relationship('User', backref='slideshows')
+    target_clients = db.relationship('ClientDevice', secondary=slideshow_clients,
+                                     backref=db.backref('assigned_slideshows', lazy='dynamic'),
+                                     lazy='dynamic')
 
 
 class ClientDevice(db.Model):
@@ -255,19 +265,39 @@ def upload_file():
         is_active=True
     )
     db.session.add(slideshow)
+
+    # Assign selected target clients (checkboxes: target_clients = list of client IDs)
+    selected_client_ids = request.form.getlist('target_clients')
+    if selected_client_ids:
+        for cid in selected_client_ids:
+            client = ClientDevice.query.get(int(cid))
+            if client:
+                slideshow.target_clients.append(client)
+    else:
+        # No selection = broadcast to all clients
+        all_clients = ClientDevice.query.all()
+        for client in all_clients:
+            slideshow.target_clients.append(client)
+
     db.session.commit()
 
     # Run locally
     run_presentation()
 
-    # Broadcast ONLY to registered Pi clients (not to dashboard browsers)
-    broadcast_to_clients('new_presentation_available', {
-        'filename': stored_name,
-        'original_filename': filename,
-        'url': url_for('download_presentation', _external=True)
-    })
+    # Broadcast ONLY to the assigned Pi clients
+    assigned_sids = {c.socket_id for c in slideshow.target_clients.all() if c.socket_id and c.socket_id in PI_CLIENT_SIDS}
+    for sid in assigned_sids:
+        socketio.emit('new_presentation_available', {
+            'filename': stored_name,
+            'original_filename': filename,
+            'url': url_for('download_presentation', _external=True)
+        }, room=sid)
 
-    flash(f'Presentation "{filename}" uploaded and activated!', 'success')
+    target_count = slideshow.target_clients.count()
+    if selected_client_ids:
+        flash(f'Presentation "{filename}" uploaded and sent to {target_count} selected client(s)!', 'success')
+    else:
+        flash(f'Presentation "{filename}" uploaded and broadcast to all clients!', 'success')
     return redirect(url_for('dashboard'))
 
 
@@ -279,6 +309,16 @@ def activate_slideshow(sid):
     slideshow = Slideshow.query.get_or_404(sid)
     Slideshow.query.update({Slideshow.is_active: False})
     slideshow.is_active = True
+
+    # Update target clients from form (admin can reassign on activate)
+    selected_client_ids = request.form.getlist('target_clients')
+    if selected_client_ids:
+        slideshow.target_clients = []
+        for cid in selected_client_ids:
+            client = ClientDevice.query.get(int(cid))
+            if client:
+                slideshow.target_clients.append(client)
+
     db.session.commit()
 
     # Run locally if the file still exists on disk
@@ -290,13 +330,17 @@ def activate_slideshow(sid):
     else:
         flash('Warning: file for this presentation is missing from disk.', 'error')
 
-    broadcast_to_clients('new_presentation_available', {
-        'filename': slideshow.filename,
-        'original_filename': slideshow.original_filename,
-        'url': url_for('download_presentation', _external=True)
-    })
+    # Broadcast to assigned clients only
+    assigned_sids = {c.socket_id for c in slideshow.target_clients.all() if c.socket_id and c.socket_id in PI_CLIENT_SIDS}
+    for ws_sid in assigned_sids:
+        socketio.emit('new_presentation_available', {
+            'filename': slideshow.filename,
+            'original_filename': slideshow.original_filename,
+            'url': url_for('download_presentation', _external=True)
+        }, room=ws_sid)
 
-    flash(f'Presentation "{slideshow.original_filename}" is now active.', 'success')
+    target_count = slideshow.target_clients.count()
+    flash(f'Presentation "{slideshow.original_filename}" activated for {target_count} client(s).', 'success')
     return redirect(url_for('dashboard'))
 
 

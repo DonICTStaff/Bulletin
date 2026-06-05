@@ -122,6 +122,31 @@
                                     <input type="file" name="file" id="file-input" accept=".ppt,.pptx"
                                            style="position:absolute;opacity:0;width:0;height:0" aria-label="Choose file">
                                 </div>
+
+                                {% if clients %}
+                                <fieldset style="margin-top:var(--space-3); border:1px solid var(--border, #ddd); border-radius:var(--radius, 6px); padding:var(--space-2) var(--space-3);">
+                                    <legend style="font-size:var(--text-sm); font-weight:600; color:var(--text-muted); padding:0 var(--space-2);">
+                                        Target Clients
+                                    </legend>
+                                    <label style="display:flex; align-items:center; gap:var(--space-2); font-size:var(--text-sm); color:var(--text-muted); margin-bottom:var(--space-1); cursor:pointer;">
+                                        <input type="checkbox" id="select-all-clients" onclick="toggleAllClients(this)" style="width:auto;">
+                                        Select all
+                                    </label>
+                                    <div style="display:flex; flex-wrap:wrap; gap:var(--space-2); max-height:160px; overflow-y:auto;">
+                                    {% for c in clients %}
+                                        <label style="display:inline-flex; align-items:center; gap:var(--space-1); padding:var(--space-1) var(--space-2); border:1px solid var(--border, #ddd); border-radius:var(--radius, 4px); font-size:var(--text-sm); cursor:pointer; {% if c.is_online %}background:var(--success-bg, #e6f9e6);{% endif %}">
+                                            <input type="checkbox" name="target_clients" value="{{ c.id }}" class="client-checkbox" style="width:auto;">
+                                            {% if c.is_online %}<span style="color:var(--success, #22c55e);">●</span>{% else %}<span style="color:var(--text-muted);">○</span>{% endif %}
+                                            {{ c.client_id or c.name }}
+                                        </label>
+                                    {% endfor %}
+                                    </div>
+                                    <p style="font-size:var(--text-xs); color:var(--text-muted); margin:var(--space-1) 0 0;">
+                                        Leave unchecked to send to all clients.
+                                    </p>
+                                </fieldset>
+                                {% endif %}
+
                                 <button class="btn btn--primary" type="submit" style="width:100%; margin-top:var(--space-3);">
                                     Upload &amp; Activate
                                 </button>
@@ -142,6 +167,7 @@
                                     <thead>
                                         <tr>
                                             <th>File</th>
+                                            <th>Clients</th>
                                             <th>Date</th>
                                             <th style="text-align:right">Actions</th>
                                         </tr>
@@ -152,6 +178,14 @@
                                         <td>
                                             <strong>{{ s.original_filename }}</strong>
                                             {% if s.is_active %}<span class="status status--live" style="margin-left:var(--space-2);"><span class="status__dot"></span> Active</span>{% endif %}
+                                        </td>
+                                        <td style="font-size:var(--text-xs);">
+                                            {% set s_clients = s.target_clients.all() %}
+                                            {% if s_clients %}
+                                                {{ s_clients | map(attribute='client_id') | select | list | join(', ') or s_clients | map(attribute='name') | join(', ') }}
+                                            {% else %}
+                                                <span style="color:var(--text-muted);">All</span>
+                                            {% endif %}
                                         </td>
                                         <td style="white-space:nowrap;">{{ s.uploaded_at.strftime('%d %b %H:%M') }}</td>
                                         <td style="text-align:right; white-space:nowrap;">
@@ -260,6 +294,9 @@
         </div>
     </div>
     <script>
+        function toggleAllClients(master) {
+            document.querySelectorAll('.client-checkbox').forEach(cb => cb.checked = master.checked);
+        }
         function toggleTheme() {
             const html = document.documentElement;
             const isDark = html.getAttribute('data-theme') === 'dark';
