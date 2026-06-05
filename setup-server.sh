@@ -87,9 +87,10 @@ fi
 step 4 $TOTAL_STEPS "Initializing database"
 spinner_start "Creating admin user..."
 SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))" 2>/dev/null)
-INIT_SCRIPT=$(mktemp)
+INIT_SCRIPT="${INSTALL_DIR}/_init_admin.py"
 cat > "$INIT_SCRIPT" << 'PYEOF'
-import os
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from app import app, init_db, db, User
 with app.app_context():
     init_db()
