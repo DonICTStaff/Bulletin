@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Profile — Bulletin Board</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=3">
+</head>
+<body>
+    <a href="#main" class="skip-link">Skip to main content</a>
+
+    <div class="shell">
+        <nav class="sidebar" role="navigation" aria-label="Main navigation">
+            <div class="sidebar__brand">
+                <img src="{{ url_for('static', filename='donlogo.jpg') }}" alt="Don College">
+                <div>
+                    <div class="sidebar__brand-name">Bulletin</div>
+                    <div class="sidebar__brand-sub">Digital Signage</div>
+                </div>
+            </div>
+            <div class="sidebar__nav">
+                <div class="sidebar__section">Main</div>
+                <a href="/dashboard" class="sidebar__link">
+                    <span class="sidebar__link-icon" aria-hidden="true">📊</span> Dashboard
+                </a>
+                {% if current_user.is_admin() %}
+                <div class="sidebar__section">Administration</div>
+                <a href="/fleet" class="sidebar__link">
+                    <span class="sidebar__link-icon" aria-hidden="true">🖥</span> Fleet Management
+                </a>
+                <a href="/users" class="sidebar__link">
+                    <span class="sidebar__link-icon" aria-hidden="true">👥</span> Users
+                </a>
+                {% endif %}
+                <div class="sidebar__section">Account</div>
+                <a href="/profile" class="sidebar__link active" aria-current="page">
+                    <span class="sidebar__link-icon" aria-hidden="true">👤</span> Profile
+                </a>
+            </div>
+            <div class="sidebar__footer">
+                <div>
+                    <div class="sidebar__user">{{ current_user.username }}</div>
+                    <div class="sidebar__user-role">{{ current_user.role }}</div>
+                </div>
+                <div style="display:flex;gap:var(--space-2);align-items:center;">
+                    <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle dark mode">
+                        <span id="theme-icon">🌙</span>
+                    </button>
+                    <a href="/logout" class="btn btn--sm btn--secondary">Sign out</a>
+                </div>
+            </div>
+        </nav>
+
+        <div class="main">
+            <header class="topbar">
+                <h1 class="topbar__title">Profile</h1>
+            </header>
+
+            <main class="content" id="main">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert--{{ 'error' if category == 'error' else 'success' }}" role="alert">
+                    <span aria-hidden="true">{{ '⚠' if category == 'error' else '✓' }}</span> {{ message }}
+                </div>
+                {% endfor %}
+                {% endif %}
+                {% endwith %}
+
+                <div class="grid-form">
+                    <!-- Account Info -->
+                    <section class="card" aria-labelledby="info-heading">
+                        <div class="card__header">
+                            <h2 class="card__title" id="info-heading">Account Information</h2>
+                        </div>
+                        <div class="card__body">
+                            <div class="form-group">
+                                <label class="form-label">Username</label>
+                                <p style="margin:0; font-size:var(--text-md);">{{ current_user.username }}</p>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Role</label>
+                                {% if current_user.is_admin() %}
+                                <span class="status status--live" style="background:var(--accent-bg); color:var(--accent-text);"><span class="status__dot" style="background:var(--accent);"></span> Administrator</span>
+                                {% else %}
+                                <span class="status status--offline">Operator</span>
+                                {% endif %}
+                                <p class="form-hint">
+                                    {% if current_user.is_admin() %}
+                                    Full access: upload, activate, delete, user management, fleet control.
+                                    {% else %}
+                                    Can upload presentations only. Contact an admin for additional access.
+                                    {% endif %}
+                                </p>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Account created</label>
+                                <p style="margin:0; color:var(--text-muted);">{{ current_user.created_at.strftime('%d %B %Y') }}</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- Change Password -->
+                    <section class="card" aria-labelledby="pw-heading">
+                        <div class="card__header">
+                            <h2 class="card__title" id="pw-heading">Change Password</h2>
+                        </div>
+                        <div class="card__body">
+                            <form method="post" action="/profile/password" novalidate>
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <div class="form-group">
+                                    <label class="form-label" for="current_password">Current password</label>
+                                    <input class="form-input" type="password" id="current_password" name="current_password"
+                                           placeholder="Enter your current password" autocomplete="current-password" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="new_password">New password</label>
+                                    <input class="form-input" type="password" id="new_password" name="new_password"
+                                           placeholder="At least 6 characters" autocomplete="new-password" required>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label" for="confirm_password">Confirm new password</label>
+                                    <input class="form-input" type="password" id="confirm_password" name="confirm_password"
+                                           placeholder="Re-enter new password" autocomplete="new-password" required>
+                                </div>
+                                <button class="btn btn--primary" type="submit" style="width:100%;">Update Password</button>
+                            </form>
+                        </div>
+                    </section>
+                </div>
+            </main>
+        </div>
+    </div>
+    <script>
+        function toggleTheme() {
+            const html = document.documentElement;
+            const isDark = html.getAttribute('data-theme') === 'dark';
+            html.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            document.getElementById('theme-icon').textContent = isDark ? '🌙' : '☀️';
+            localStorage.setItem('theme', isDark ? 'light' : 'dark');
+        }
+        if (localStorage.getItem('theme') === 'dark') {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            const icon = document.getElementById('theme-icon');
+            if (icon) icon.textContent = '☀️';
+        }
+    </script>
+</body>
+</html>

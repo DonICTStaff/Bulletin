@@ -32,6 +32,10 @@
                     <span class="sidebar__link-icon" aria-hidden="true">👥</span> Users
                 </a>
                 {% endif %}
+                <div class="sidebar__section">Account</div>
+                <a href="/profile" class="sidebar__link">
+                    <span class="sidebar__link-icon" aria-hidden="true">👤</span> Profile
+                </a>
                 <div class="sidebar__section">Info</div>
                 <a href="/changelog" class="sidebar__link">
                     <span class="sidebar__link-icon" aria-hidden="true">📋</span> Changelog
@@ -133,8 +137,10 @@
                                             {% endif %}
                                         </td>
                                         <td style="white-space:nowrap;">{{ u.created_at.strftime('%d %b %Y') }}</td>
-                                        <td style="text-align:right;">
+                                        <td style="text-align:right; white-space:nowrap;">
                                             {% if u.id != current_user.id %}
+                                            <button type="button" class="btn btn--sm btn--secondary"
+                                                    onclick="document.getElementById('edit-{{ u.id }}').style.display='block'">Edit</button>
                                             <form method="post" action="/users/{{ u.id }}/delete" style="display:inline;"
                                                   onsubmit="return confirm('Delete user &quot;{{ u.username }}&quot;?');">
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -143,6 +149,29 @@
                                             {% endif %}
                                         </td>
                                     </tr>
+                                    {% if u.id != current_user.id %}
+                                    <tr id="edit-{{ u.id }}" style="display:none;">
+                                        <td colspan="4" style="background:var(--surface-raised, #f5f5f5); padding:var(--space-3);">
+                                            <form method="post" action="/users/{{ u.id }}/edit" style="display:flex; gap:var(--space-2); align-items:flex-end; flex-wrap:wrap;">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <div class="form-group" style="margin:0; flex:1; min-width:120px;">
+                                                    <label class="form-label" style="font-size:var(--text-xs);">New password</label>
+                                                    <input class="form-input" type="password" name="password" placeholder="Leave blank to keep" autocomplete="new-password">
+                                                </div>
+                                                <div class="form-group" style="margin:0; min-width:100px;">
+                                                    <label class="form-label" style="font-size:var(--text-xs);">Role</label>
+                                                    <select class="form-select" name="role">
+                                                        <option value="operator" {% if not u.is_admin() %}selected{% endif %}>Operator</option>
+                                                        <option value="admin" {% if u.is_admin() %}selected{% endif %}>Admin</option>
+                                                    </select>
+                                                </div>
+                                                <button class="btn btn--sm btn--primary" type="submit">Save</button>
+                                                <button class="btn btn--sm btn--secondary" type="button"
+                                                        onclick="document.getElementById('edit-{{ u.id }}').style.display='none'">Cancel</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endif %}
                                     {% endfor %}
                                     </tbody>
                                 </table>

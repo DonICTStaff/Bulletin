@@ -34,6 +34,10 @@
                     <span class="sidebar__link-icon" aria-hidden="true">👥</span> Users
                 </a>
                 {% endif %}
+                <div class="sidebar__section">Account</div>
+                <a href="/profile" class="sidebar__link">
+                    <span class="sidebar__link-icon" aria-hidden="true">👤</span> Profile
+                </a>
                 <div class="sidebar__section">Info</div>
                 <a href="/changelog" class="sidebar__link">
                     <span class="sidebar__link-icon" aria-hidden="true">📋</span> Changelog
@@ -151,16 +155,18 @@
                                         </td>
                                         <td style="white-space:nowrap;">{{ s.uploaded_at.strftime('%d %b %H:%M') }}</td>
                                         <td style="text-align:right; white-space:nowrap;">
+                                            {% if current_user.is_admin() %}
                                             <form method="post" action="/slideshow/{{ s.id }}/activate" style="display:inline;">
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                 <button class="btn btn--sm btn--secondary" type="submit" {% if s.is_active %}disabled{% endif %}>Set Active</button>
                                             </form>
-                                            {% if current_user.is_admin() %}
                                             <form method="post" action="/slideshow/{{ s.id }}/delete" style="display:inline;"
                                                   onsubmit="return confirm('Delete this presentation?');">
                                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                                 <button class="btn btn--sm btn--danger" type="submit">Delete</button>
                                             </form>
+                                            {% else %}
+                                            <span style="color:var(--text-muted); font-size:var(--text-xs);">Uploaded</span>
                                             {% endif %}
                                         </td>
                                     </tr>
@@ -188,6 +194,7 @@
                         </span>
                     </div>
 
+                    {% if current_user.is_admin() %}
                     {% if clients %}
                     <div class="table-wrap">
                         <table>
@@ -234,6 +241,17 @@
                                 <div class="empty__text">Deploy a kiosk client to get started:</div>
                                 <code class="code">curl -fsSL https://raw.githubusercontent.com/DonICTStaff/Bulletin/main/deploy-client.sh | sudo bash</code>
                             </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    {# Operators: just show a summary card, no fleet detail #}
+                    <div class="card">
+                        <div class="card__body">
+                            <p style="color:var(--text-muted);">
+                                {{ online_count }} of {{ clients|length }} client{{ 's' if clients|length != 1 }} currently online.
+                                Fleet details are visible to administrators only.
+                            </p>
                         </div>
                     </div>
                     {% endif %}

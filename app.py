@@ -14,7 +14,7 @@ from wtforms import StringField, PasswordField, SelectField, FileField
 from wtforms.validators import DataRequired, Length
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # ── App Configuration ────────────────────────────────────────────────────────
 app = Flask(__name__)
@@ -23,6 +23,12 @@ app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__fil
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('BULLETIN_DATABASE_URI', 'sqlite:///bulletin.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100 MB max upload
+
+# Session security
+app.config['PERMANENT_SESSION_LIFETIME'] = 28800  # 8 hours
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+# Set SESSION_COOKIE_SECURE=True in production behind HTTPS
 
 ALLOWED_EXTENSIONS = {'pptx', 'ppt'}
 
@@ -37,6 +43,7 @@ def broadcast_to_clients(event_name, data):
 db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+login_manager.remember_cookie_duration = timedelta(days=30)
 socketio = SocketIO(app, async_mode='eventlet', cors_allowed_origins='*')
 
 # CSRF protection for all HTML form POSTs
@@ -163,10 +170,12 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
+        remember = request.form.get('remember') is not None
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
-            login_user(user)
-            return redirect(url_for('dashboard'))
+            login_user(user, remember=remember)
+            next_page = request.args.get('next')
+            return redirect(next_page or url_for('dashboard'))
         error = 'Invalid credentials'
     return render_template('login.html', error=error)
 
@@ -176,6 +185,21 @@ def login():
 def logout():
     logout_user()
     return redirect(url_for('login'))
+
+
+# ── Error Handlers ──────────────────────────────────────────────────────────
+@app.errorhandler(403)
+def forbidden(e):
+    return render_template('error.html', code=403,
+                           message='You do not have permission to access this page. '
+                                   'Operators can only upload presentations — contact an '
+                                   'administrator for additional access.'), 403
+
+
+@app.errorhandler(404)
+def not_found(e):
+    return render_template('error.html', code=404,
+                           message='The requested page was not found.'), 404
 
 
 # ── Routes: Dashboard ─────────────────────────────────────────────────────────
@@ -250,6 +274,7 @@ def upload_file():
 # ── Routes: Set Active Presentation ───────────────────────────────────────────
 @app.route('/slideshow/<int:sid>/activate', methods=['POST'])
 @login_required
+@admin_required
 def activate_slideshow(sid):
     slideshow = Slideshow.query.get_or_404(sid)
     Slideshow.query.update({Slideshow.is_active: False})
@@ -463,6 +488,61 @@ def delete_user(uid):
     db.session.commit()
     flash(f'User "{user.username}" deleted.', 'success')
     return redirect(url_for('manage_users'))
+
+
+@app.route('/users/<int:uid>/edit', methods=['POST'])
+@login_required
+@admin_required
+def edit_user(uid):
+    """Admin can change another user's password and role."""
+    user = User.query.get_or_404(uid)
+    if user.id == current_user.id:
+        flash('Use the profile page to change your own password.', 'error')
+        return redirect(url_for('manage_users'))
+
+    new_password = request.form.get('password', '').strip()
+    new_role = request.form.get('role', user.role)
+
+    if new_password:
+        user.password_hash = generate_password_hash(new_password)
+    if new_role in ('admin', 'operator'):
+        user.role = new_role
+
+    db.session.commit()
+    flash(f'User "{user.username}" updated.', 'success')
+    return redirect(url_for('manage_users'))
+
+
+# ── Routes: Profile (any logged-in user) ────────────────────────────────────
+@app.route('/profile')
+@login_required
+def profile():
+    return render_template('profile.html')
+
+
+@app.route('/profile/password', methods=['POST'])
+@login_required
+def change_password():
+    current_pw = request.form.get('current_password', '')
+    new_pw = request.form.get('new_password', '')
+    confirm_pw = request.form.get('confirm_password', '')
+
+    if not current_user.check_password(current_pw):
+        flash('Current password is incorrect', 'error')
+        return redirect(url_for('profile'))
+
+    if len(new_pw) < 6:
+        flash('New password must be at least 6 characters', 'error')
+        return redirect(url_for('profile'))
+
+    if new_pw != confirm_pw:
+        flash('New passwords do not match', 'error')
+        return redirect(url_for('profile'))
+
+    current_user.password_hash = generate_password_hash(new_pw)
+    db.session.commit()
+    flash('Password changed successfully', 'success')
+    return redirect(url_for('profile'))
 
 
 # ── Routes: Fleet Management (Admin only) ─────────────────────────────────────
