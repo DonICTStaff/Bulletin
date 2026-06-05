@@ -192,9 +192,13 @@ python3 -m venv "$VENV_DIR" > /dev/null 2>&1
 spinner_stop "Virtual environment created"
 spinner_start "Installing Python dependencies..."
 source "${VENV_DIR}/bin/activate"
-pip install -qq -r "${INSTALL_DIR}/requirements.txt" > /dev/null 2>&1
+if pip install -r "${INSTALL_DIR}/requirements.txt" 2>&1; then
+    spinner_stop "Python dependencies installed"
+else
+    spinner_stop "Some dependencies failed (non-critical)"
+    warn "If the server fails to start, check: pip install -r ${INSTALL_DIR}/requirements.txt"
+fi
 deactivate
-spinner_stop "Python dependencies installed"
 
 # ── Step 4: Database ──────────────────────────────────────────────────────────
 step 4 $TOTAL_STEPS "Initializing database"
