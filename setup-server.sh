@@ -10,11 +10,8 @@
 
 set -euo pipefail
 
-# When run via "curl | bash", stdin is the script pipe, not the terminal.
-# All interactive prompts must read from /dev/tty explicitly.
 TTY="/dev/tty"
 
-# Verify we can read from the terminal for interactive prompts
 if [[ ! -t 0 ]] && [[ ! -e /dev/tty ]]; then
     echo "ERROR: No terminal available for interactive input."
     echo "Run this script directly (not piped), or use: bash setup-server.sh"
@@ -30,7 +27,6 @@ INSTALL_DIR="/opt/bulletin"
 VENV_DIR="${INSTALL_DIR}/venv"
 SERVICE_NAME="bulletin-server"
 
-# ── ANSI Colors ───────────────────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -40,7 +36,6 @@ BOLD='\033[1m'
 DIM='\033[2m'
 NC='\033[0m'
 
-# ── Spinner ────────────────────────────────────────────────────────────────────
 SPINNER_PID=""
 SPINNER_FRAMES=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
 SPINNER_INDEX=0
@@ -51,7 +46,7 @@ spinner_start() {
     (
         while true; do
             SPINNER_INDEX=$(( (SPINNER_INDEX + 1) % 10 ))
-            printf "\\r  ${CYAN}%s${NC} %s" "${SPINNER_FRAMES[$SPINNER_INDEX]}" "$msg"
+            printf "\r  ${CYAN}%s${NC} %s" "${SPINNER_FRAMES[$SPINNER_INDEX]}" "$msg"
             sleep 0.1
         done
     ) & SPINNER_PID=$!
@@ -64,62 +59,48 @@ spinner_stop() {
         wait "$SPINNER_PID" 2>/dev/null || true
         SPINNER_PID=""
     fi
-    printf "\\r  ${GREEN}✓${NC} %s\\n" "$1"
+    printf "\r  ${GREEN}✓${NC}  %s\n" "$1"
 }
 
-# ── Logging ────────────────────────────────────────────────────────────────────
-info()    { printf "  ${BLUE}ℹ${NC}  %s\\n" "$*"; }
-success() { printf "  ${GREEN}✓${NC}  %s\\n" "$*"; }
-warn()    { printf "  ${YELLOW}⚠${NC}  %s\\n" "$*"; }
-error()   { printf "\\n  ${RED}✗  ERROR:${NC} %s\\n\\n" "$*"; exit 1; }
-step()    { printf "\\n${BOLD}  [%d/%d]${NC} %s\\n" "$1" "$2" "$3"; }
+info()    { printf "  ${BLUE}ℹ${NC}  %s\n" "$*"; }
+success() { printf "  ${GREEN}✓${NC}  %s\n" "$*"; }
+warn()    { printf "  ${YELLOW}⚠${NC}  %s\n" "$*"; }
+error()   { printf "\n  ${RED}✗  ERROR:${NC} %s\n\n" "$*"; exit 1; }
+step()    { printf "\n${BOLD}  [%d/%d]${NC} %s\n" "$1" "$2" "$3"; }
 
-# ── Banner ─────────────────────────────────────────────────────────────────────
 clear 2>/dev/null || true
 echo ""
 echo -e "${BOLD}${CYAN}"
 echo "  ╔══════════════════════════════════════════════════╗"
-echo "  ║                                                  ║"
-echo "  ║   $(uv run python -m pyfiglet -f slant Bulletin | sed 's/^/      /')   ║"
-echo "  ║                                                  ║"
-echo "  ║          ${NC}${BOLD}Server Installer${CYAN}                          ║"
+echo "  ║          Bulletin Board Server Installer         ║"
 echo "  ╚══════════════════════════════════════════════════╝"
 echo -e "${NC}"
 echo -e "  ${DIM}Don College Bulletin Board Digital Signage System${NC}"
-echo -e "  ${DIM}https://github.com/${REPO_OWNER}/${REPO_NAME}${NC}"
 echo ""
 
-# ── Interactive Configuration ─────────────────────────────────────────────────
 echo -e "  ${BOLD}This installer will set up the Bulletin Board server.${NC}"
 echo -e "  ${DIM}You will need to provide a few configuration values.${NC}"
 echo ""
 
-# Admin password
 while true; do
     printf "  ${BOLD}▸${NC} ${CYAN}Admin password${NC} for the web dashboard: "
     read -r ADMIN_PASS < "$TTY"
     ADMIN_PASS="${ADMIN_PASS:-}"
-    if [[ -n "$ADMIN_PASS" ]]; then
-        break
-    fi
+    if [[ -n "$ADMIN_PASS" ]]; then break; fi
     warn "Admin password cannot be empty."
 done
 
-# Server hostname
 printf "  ${BOLD}▸${NC} ${CYAN}Server hostname${NC} [bulletin-server]: "
 read -r SERVER_HOSTNAME < "$TTY"
 SERVER_HOSTNAME="${SERVER_HOSTNAME:-bulletin-server}"
 
-# Flask port
 printf "  ${BOLD}▸${NC} ${CYAN}Flask port${NC} [5000]: "
 read -r SERVER_PORT < "$TTY"
 SERVER_PORT="${SERVER_PORT:-5000}"
 
-# ── Summary ────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "  ${DIM}┌──────────────────────────────────────────────────────┐${NC}"
 echo -e "  ${DIM}│${NC} ${BOLD}Configuration Summary${NC}"
-echo -e "  ${DIM}│${NC}"
 echo -e "  ${DIM}│${NC}   Hostname: ${GREEN}${SERVER_HOSTNAME}${NC}"
 echo -e "  ${DIM}│${NC}   Port:     ${GREEN}${SERVER_PORT}${NC}"
 echo -e "  ${DIM}│${NC}   Install:  ${GREEN}${INSTALL_DIR}${NC}"
@@ -129,17 +110,9 @@ echo ""
 printf "  Proceed with installation? ${DIM}[Y/n]${NC}: "
 read -r CONFIRM < "$TTY"
 CONFIRM="${CONFIRM:-Y}"
-if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then
-    echo ""
-    info "Installation cancelled."
-    echo ""
-    exit 0
-fi
+if [[ ! "$CONFIRM" =~ ^[Yy]$ ]]; then echo ""; info "Installation cancelled."; echo ""; exit 0; fi
 
-# ── Require root ────────────────────……………………………………………………
-if [[ $EUID -ne 0 ]]; then
-    error "This installer must be run as root (use sudo)."
-fi
+if [[ $EUID -ne 0 ]]; then error "This installer must be run as root (use sudo)."; fi
 
 TOTAL_STEPS=7
 
@@ -148,56 +121,68 @@ step 1 $TOTAL_STEPS "Installing system packages"
 spinner_start "Updating package lists..."
 apt-get update -qq > /dev/null 2>&1
 spinner_stop "Package lists updated"
-
-spinner_start "Installing dependencies (python3, nginx, git, curl)..."
-apt-get install -y -qq \
-    python3 \
-    python3-venv \
-    python3-pip \
-    nginx \
-    git \
-    curl \
-    > /dev/null 2>&1
+spinner_start "Installing dependencies..."
+apt-get install -y -qq python3 python3-venv python3-pip nginx git curl > /dev/null 2>&1
 spinner_stop "System packages installed"
 
-# ── Step 2: Clone repository ──────────────────────────────────────────────────
+# ── Step 2: Fetch source code ─────────────────────────────────────────────────
 step 2 $TOTAL_STEPS "Fetching source code"
-if [[ -d "$INSTALL_DIR" ]]; then
-    spinner_start "Updating existing installation..."
-    cd "$INSTALL_DIR"
-    # Discard local changes (pyc cache, db file, etc.) so git pull succeeds
-    git reset --hard HEAD 2>/dev/null
-    git clean -fdx 2>/dev/null
-    git pull origin "$BRANCH" 2>&1
-    PULL_STATUS=$?
-    if [[ $PULL_STATUS -ne 0 ]]; then
-        warn "Git pull failed (exit $PULL_STATUS), continuing with existing files"
-    fi
-    spinner_stop "Repository updated"
-else
-    spinner_start "Cloning repository..."
-    git clone --branch "$BRANCH" "https://github.com/${REPO_OWNER}/${REPO_NAME}.git" "$INSTALL_DIR" 2>&1
-    CLONE_STATUS=$?
-    if [[ $CLONE_STATUS -ne 0 ]]; then
-        error "Git clone failed (exit $CLONE_STATUS)"
-    fi
-    spinner_stop "Repository cloned to ${INSTALL_DIR}"
+
+# Preserve database and config if they exist
+DB_TMP=""
+CONFIG_TMP=""
+if [[ -f "${INSTALL_DIR}/instance/bulletin.db" ]]; then
+    DB_TMP=$(mktemp)
+    cp "${INSTALL_DIR}/instance/bulletin.db" "$DB_TMP"
+    info "Preserved existing database"
+fi
+if [[ -f "${INSTALL_DIR}/config.env" ]]; then
+    CONFIG_TMP=$(mktemp)
+    cp "${INSTALL_DIR}/config.env" "$CONFIG_TMP"
+    info "Preserved existing config"
 fi
 
-# Ensure www-data owns all files (git pull may create root-owned files)
+if [[ -d "${INSTALL_DIR}/.git" ]]; then
+    spinner_start "Updating existing installation..."
+    cd "$INSTALL_DIR"
+    git reset --hard HEAD 2>/dev/null || true
+    git clean -fdx 2>/dev/null || true
+    if git pull origin "$BRANCH" 2>/dev/null; then
+        spinner_stop "Repository updated"
+    else
+        warn "Git pull failed, re-cloning..."
+        rm -rf "$INSTALL_DIR"
+        git clone --branch "$BRANCH" "https://github.com/${REPO_OWNER}/${REPO_NAME}.git" "$INSTALL_DIR" 2>/dev/null || true
+        spinner_stop "Repository cloned"
+    fi
+else
+    spinner_start "Cloning repository..."
+    if [[ -d "$INSTALL_DIR" ]]; then rm -rf "$INSTALL_DIR"; fi
+    git clone --branch "$BRANCH" "https://github.com/${REPO_OWNER}/${REPO_NAME}.git" "$INSTALL_DIR" 2>/dev/null || true
+    spinner_stop "Repository cloned"
+fi
+
+# Restore preserved files
+if [[ -n "$DB_TMP" && -f "$DB_TMP" ]]; then
+    mkdir -p "${INSTALL_DIR}/instance"
+    cp "$DB_TMP" "${INSTALL_DIR}/instance/bulletin.db"
+    rm -f "$DB_TMP"
+    info "Restored database"
+fi
+if [[ -n "$CONFIG_TMP" && -f "$CONFIG_TMP" ]]; then
+    cp "$CONFIG_TMP" "${INSTALL_DIR}/config.env"
+    rm -f "$CONFIG_TMP"
+    info "Restored config"
+fi
+
 chown -R www-data:www-data "${INSTALL_DIR}"
 
-# Restart the Flask service so new code takes effect
-systemctl daemon-reload 2>/dev/null
+# Restart service if running
 if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
-    spinner_start "Restarting server with new code..."
-    timeout 15 systemctl restart "${SERVICE_NAME}" 2>&1 || true
+    spinner_start "Restarting server..."
+    timeout 15 systemctl restart "${SERVICE_NAME}" 2>/dev/null || true
     sleep 2
-    if systemctl is-active --quiet "${SERVICE_NAME}" 2>/dev/null; then
-        spinner_stop "Server restarted"
-    else
-        spinner_stop "Restart failed -- will retry at end"
-    fi
+    spinner_stop "Server restarted"
 fi
 
 # ── Step 3: Python venv ───────────────────────────────────────────────────────
@@ -205,7 +190,6 @@ step 3 $TOTAL_STEPS "Setting up Python environment"
 spinner_start "Creating virtual environment..."
 python3 -m venv "$VENV_DIR" > /dev/null 2>&1
 spinner_stop "Virtual environment created"
-
 spinner_start "Installing Python dependencies..."
 source "${VENV_DIR}/bin/activate"
 pip install -qq -r "${INSTALL_DIR}/requirements.txt" > /dev/null 2>&1
@@ -229,23 +213,24 @@ with app.app_context():
     if admin:
         admin.password_hash = generate_password_hash(os.environ['BULLETIN_ADMIN_PASSWORD'])
         db.session.commit()
-" 2>&1
+" 2>&1 || true
 ACTIVATION_STATUS=$?
 deactivate
+unset BULLETIN_ADMIN_PASSWORD
 if [[ $ACTIVATION_STATUS -ne 0 ]]; then
     spinner_stop "Failed (see error above)"
-    echo ""
     error "Database initialization failed. Check the error output above."
 fi
-unset BULLETIN_ADMIN_PASSWORD
 spinner_stop "Database initialized"
 
 # ── Step 5: Config ────────────────────────────────────────────────────────────
 step 5 $TOTAL_STEPS "Writing configuration"
-cat > "${INSTALL_DIR}/config.env" << EOF
+if [[ ! -f "${INSTALL_DIR}/config.env" ]]; then
+    cat > "${INSTALL_DIR}/config.env" << EOF
 BULLETIN_SECRET_KEY=${SECRET_KEY}
 EOF
-chmod 600 "${INSTALL_DIR}/config.env"
+    chmod 600 "${INSTALL_DIR}/config.env"
+fi
 mkdir -p "${INSTALL_DIR}/uploads"
 success "Config saved to ${INSTALL_DIR}/config.env"
 
@@ -266,6 +251,7 @@ EnvironmentFile=${INSTALL_DIR}/config.env
 ExecStart=${VENV_DIR}/bin/python ${INSTALL_DIR}/app.py
 Restart=always
 RestartSec=5
+TimeoutStopSec=10
 StandardOutput=journal
 StandardError=journal
 
@@ -299,7 +285,7 @@ server {
         proxy_pass http://127.0.0.1:${SERVER_PORT}/socket.io;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection \"upgrade\";
+        proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -326,14 +312,6 @@ if systemctl is-active --quiet "${SERVICE_NAME}"; then
 else
     spinner_stop "Service start failed"
     warn "Check: journalctl -u ${SERVICE_NAME} -n 30"
-fi
-
-# ── Verify ─────────────────────────────────────────────────────────────────────
-echo ""
-if systemctl is-active --quiet "${SERVICE_NAME}"; then
-    success "Service is running"
-else
-    warn "Service may still be starting. Check: journalctl -u ${SERVICE_NAME} -n 20"
 fi
 
 # ── Done ───────────────────────────────────────────────────────────────────────
