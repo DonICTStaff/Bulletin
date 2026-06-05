@@ -19,6 +19,7 @@ SPINNER_PID=""; SPINNER_FRAMES=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' 
 
 spinner_start() { local m="${1:-...}"; printf "  ${CYAN}%s${NC} %s" "${SPINNER_FRAMES[0]}" "$m"; (while true; do SPINNER_INDEX=$(( (SPINNER_INDEX+1)%10 )); printf "\r  ${CYAN}%s${NC} %s" "${SPINNER_FRAMES[$SPINNER_INDEX]}" "$m"; sleep 0.1; done) & SPINNER_PID=$!; disown "$SPINNER_PID" 2>/dev/null || true; }
 spinner_stop() { [[ -n "$SPINNER_PID" ]] && { kill "$SPINNER_PID" 2>/dev/null||true; wait "$SPINNER_PID" 2>/dev/null||true; SPINNER_PID=""; }; printf "\r  ${GREEN}✓${NC}  %s\n" "$1"; }
+info() { printf "  ${CYAN}ℹ${NC}  %s\n" "$*"; }
 warn() { printf "  ${YELLOW}⚠${NC}  %s\n" "$*"; }
 error() { printf "\n  ${RED}✗  ERROR:${NC} %s\n\n" "$*"; exit 1; }
 step() { printf "\n${BOLD}  [%d/%d]${NC} %s\n" "$1" "$2" "$3"; }
